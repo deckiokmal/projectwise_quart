@@ -1,0 +1,54 @@
+[2025-08-12 00:48:26,647] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 00:48:26,693] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 00:48:27,024] INFO in client: keep_alive loop cancelled
+[2025-08-12 00:48:27,025] INFO in client: tools_updater cancelled
+[2025-08-12 00:50:52,157] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 00:50:52,200] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 00:50:52,466] INFO in client: keep_alive loop cancelled
+[2025-08-12 00:50:52,466] INFO in client: tools_updater cancelled
+[2025-08-12 00:58:51,270] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 00:58:51,320] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 00:59:21,284] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 00:59:51,334] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:00:21,370] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:00:51,413] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:01:21,327] INFO in client: keep_alive loop cancelled
+[2025-08-12 01:01:21,328] INFO in client: tools_updater cancelled
+[2025-08-12 01:01:38,106] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 01:01:38,150] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 01:02:08,114] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:02:38,127] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:03:08,157] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:03:38,193] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:04:08,237] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:04:38,282] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:05:08,303] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:05:38,327] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:06:08,367] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:06:38,410] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:07:08,448] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:07:38,483] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:08:08,529] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:08:19,024] INFO in client: keep_alive loop cancelled
+[2025-08-12 01:08:19,024] INFO in client: tools_updater cancelled
+[2025-08-12 01:09:22,419] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 01:09:22,446] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 01:11:11,779] INFO in client: keep_alive loop cancelled
+[2025-08-12 01:11:11,780] INFO in client: tools_updater cancelled
+[2025-08-12 01:13:04,297] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 01:13:04,341] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 01:15:04,302] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:16:38,414] INFO in client: keep_alive loop cancelled
+[2025-08-12 01:16:38,415] INFO in client: tools_updater cancelled
+[2025-08-12 01:16:52,428] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 01:16:52,463] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 01:18:10,702] INFO in client: keep_alive loop cancelled
+[2025-08-12 01:18:10,702] INFO in client: tools_updater cancelled
+[2025-08-12 01:18:25,053] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 01:18:25,086] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 01:20:25,069] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 01:22:11,399] INFO in client: keep_alive loop cancelled
+[2025-08-12 01:22:11,400] INFO in client: tools_updater cancelled
+[2025-08-12 01:22:27,401] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 01:22:27,432] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 01:24:27,406] INFO in client: call_tool "heartbeat" args={}

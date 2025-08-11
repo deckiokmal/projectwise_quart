@@ -1,0 +1,9 @@
+[2025-08-12 00:48:27,022] ERROR in short_term_memory: Gagal inisialisasi database: The asyncio extension requires an async driver to be used. The loaded 'pysqlite' is not async.
+[2025-08-12 00:50:52,457] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:\1. PROJECTS\projectwise_quart\projectwise\database\chat_memory.sqlite
+[2025-08-12 00:58:51,384] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite
+[2025-08-12 01:01:38,228] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite
+[2025-08-12 01:09:22,583] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite
+[2025-08-12 01:13:04,392] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite
+[2025-08-12 01:16:52,507] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite
+[2025-08-12 01:18:25,134] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite
+[2025-08-12 01:22:27,477] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite

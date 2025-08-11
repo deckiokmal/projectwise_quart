@@ -1,0 +1,480 @@
+/* =====================
+   1. RESET & BASE
+   ===================== */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #343541;
+    color: #e5e5e5;
+}
+
+/* =====================
+   2. LAYOUT UTAMA
+   ===================== */
+.app-container {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Sidebar kiri */
+.sidebar {
+    width: 260px;
+    background: #202123;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar__brand {
+    padding: 1.5rem;
+    border-bottom: 1px solid #333;
+    text-align: center;
+}
+
+.sidebar__brand h2 {
+    color: #fff;
+    font-size: 1.25rem;
+}
+
+.sidebar__nav {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.sidebar__nav ul {
+    list-style: none;
+}
+
+.sidebar__nav a {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    color: #fff;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: background .2s;
+}
+
+.sidebar__nav a i {
+    margin-right: 0.75rem;
+}
+
+.sidebar__nav li.active a,
+.sidebar__nav a:hover {
+    background: #343541;
+}
+
+.sidebar__footer {
+    padding: 1rem;
+    border-top: 1px solid #333;
+    font-size: 0.85rem;
+    text-align: center;
+    opacity: 0.6;
+}
+
+/* Konten utama */
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #343541;
+}
+
+/* Header */
+.main__header {
+    padding: 2rem;
+    border-bottom: 1px solid #444654;
+}
+
+.main__header h1 {
+    font-size: 1.5rem;
+    font-weight: normal;
+    color: #fff;
+}
+
+/* Area chat */
+.main__chat {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.main__chat::-webkit-scrollbar {
+    width: 6px;
+}
+
+.main__chat::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+}
+
+/* =====================
+   3. BUBBLE PESAN
+   ===================== */
+.message {
+    display: block;
+    max-width: 70%;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    line-height: 1.4;
+    background: #202123;
+    color: #e5e5e5;
+
+    /* Paksakan wrap pada teks panjang atau tanpa spasi */
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    word-break: break-all !important;
+}
+
+.message.user {
+    background: #444654;
+    margin-left: auto;
+    margin-right: 0;
+    text-align: left;
+}
+
+.message.assistant {
+    background: #202123;
+    margin-right: auto;
+    margin-left: 0;
+    text-align: left;
+}
+
+/* Markdown elements */
+.message p {
+    margin: 0.5rem 0;
+}
+
+.message h1,
+.message h2,
+.message h3,
+.message h4,
+.message h5,
+.message h6 {
+    margin: 0.75rem 0 0.25rem;
+    font-weight: bold;
+}
+
+.message ul,
+.message ol {
+    margin: 0.5rem 0 0.5rem 1.25rem;
+}
+
+.message li {
+    margin: 0.25rem 0;
+}
+
+.message blockquote {
+    margin: 0.5rem 1rem;
+    padding-left: 1rem;
+    border-left: 4px solid #888;
+    color: #ccc;
+    font-style: italic;
+}
+
+.message pre {
+    background: #1e1e1e;
+    color: #dcdcdc;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: monospace;
+    margin: 0.5rem 0;
+}
+
+.message code {
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: monospace;
+
+    /* Paksakan wrap juga di inline code */
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    word-break: break-all !important;
+}
+
+.message table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+}
+
+.message th,
+.message td {
+    border: 1px solid #444;
+    padding: 0.5rem;
+    text-align: left;
+}
+
+.message a {
+    color: #10a37f;
+    text-decoration: underline;
+}
+
+/* =====================
+   4. INPUT FOOTER
+   ===================== */
+.main__input {
+    border-top: 1px solid #444654;
+    padding: 0.5rem 1rem;
+    background: transparent;
+}
+
+.main__input form {
+    display: flex;
+    flex-direction: column;
+    background-color: #202123;
+    border-radius: 6px;
+    padding: 0.5rem;
+    width: 100%;
+}
+
+.input-row {
+    width: 100%;
+    margin: 0;
+}
+
+.input-row+.input-row {
+    margin-top: 0.5rem;
+}
+
+#chat-input {
+    width: 100%;
+    flex: 1;
+    min-height: 2.5rem;
+    max-height: 150px;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    line-height: 1.4;
+    color: #e5e5e5;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    resize: none;
+    overflow-y: hidden;
+    transition: height 0.1s ease-out;
+    box-sizing: border-box;
+}
+
+#chat-input.scrolled {
+    overflow-y: auto;
+}
+
+.input-row--actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.upload-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+#upload-btn {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    color: #aaa;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: color .2s;
+}
+
+#upload-btn:hover {
+    color: #fff;
+}
+
+.upload-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 0.4rem;
+    background: #202123;
+    border: 1px solid #444654;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    min-width: 180px;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.upload-menu.hidden {
+    display: none;
+}
+
+.upload-menu__item {
+    width: 100%;
+    padding: 0.6rem 1rem;
+    background: none;
+    border: none;
+    color: #e5e5e5;
+    text-align: left;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    transition: background .2s;
+}
+
+.upload-menu__item:hover {
+    background: #343541;
+}
+
+.upload-menu__item i {
+    font-size: 1rem;
+    color: #10a37f;
+}
+
+.btn--send {
+    background: #10a37f;
+    border: none;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background .2s;
+}
+
+.btn--send:hover {
+    background: #0e8c6a;
+}
+
+/* =====================
+   5. UTILITIES & MODAL
+   ===================== */
+.hidden {
+    display: none !important;
+}
+
+.btn--icon {
+    background: #10a37f;
+    border: none;
+    color: #fff;
+    font-size: 1.1rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .2s;
+}
+
+.btn--icon:hover {
+    background: #0e8c6a;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal__backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.modal__dialog {
+    position: relative;
+    background: #202123;
+    padding: 1.5rem;
+    border-radius: 6px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    color: #e5e5e5;
+    z-index: 201;
+}
+
+.modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.modal__header h2 {
+    font-size: 1.25rem;
+    margin: 0;
+}
+
+.modal__close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #e5e5e5;
+    cursor: pointer;
+}
+
+.modal__form .form-group {
+    margin-bottom: 1rem;
+}
+
+.modal__form label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.modal__form input[type="text"],
+.modal__form input[type="number"],
+.modal__form input[type="file"] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #444654;
+    border-radius: 4px;
+    background: #343541;
+    color: #e5e5e5;
+}
+
+.modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.modal__actions button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.modal__actions button[type="button"] {
+    background: #444654;
+    color: #e5e5e5;
+}
+
+.modal__actions button[type="submit"] {
+    background: #10a37f;
+    color: #fff;
+}
