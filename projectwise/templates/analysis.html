@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block title %}Analysis — ProjectWise{% endblock %}
+
+{% block body %}
+<div class="app-container">
+    <main class="main">
+        <header class="main__header">
+            <h1>Analysis</h1>
+        </header>
+        <section class="analysis-tool" id="competitor-section">
+            <h2>Competitor Analysis</h2>
+            <p>Enter a description of the project or tender to analyse potential competitors and differentiation
+                strategies.</p>
+            <textarea id="competitor-input" rows="4" placeholder="Enter project description…"></textarea>
+            <button id="competitor-btn">Analyse Competitors</button>
+            <pre id="competitor-result" class="result"></pre>
+        </section>
+
+        <section class="analysis-tool" id="price-section">
+            <h2>Price Analysis</h2>
+            <p>Provide product details in JSON format to compute pricing components. See documentation for schema.</p>
+            <textarea id="price-input" rows="4" placeholder="{\n  \" product_name\": \"Internet Dedicated\",\n
+                \"bandwidth\": 10,\n \"job_title\": \"Sales Manager\"\n}"></textarea>
+            <button id="price-btn">Analyse Price</button>
+            <pre id="price-result" class="result"></pre>
+        </section>
+
+        <section class="analysis-tool" id="risk-section">
+            <h2>Risk Analysis</h2>
+            <p>Describe the project to identify major risks and suggested mitigations.</p>
+            <textarea id="risk-input" rows="4" placeholder="Enter project description…"></textarea>
+            <button id="risk-btn">Assess Risks</button>
+            <pre id="risk-result" class="result"></pre>
+        </section>
+
+        <section class="analysis-tool" id="calculator-section">
+            <h2>Product Calculator</h2>
+            <p>List items (each with a name, price and quantity) as a JSON array. Optionally specify a discount rate
+                (0–1).</p>
+            <textarea id="calc-input" rows="4" placeholder="[\n  {\" name\": \"Item A\", \"price\": 100000,
+                \"quantity\": 2},\n {\"name\": \"Item B\", \"price\": 50000, \"quantity\": 3}\n]"></textarea>
+            <input type="text" id="calc-discount" placeholder="Discount rate (e.g. 0.1 for 10%)">
+            <button id="calc-btn">Calculate</button>
+            <pre id="calc-result" class="result"></pre>
+        </section>
+    </main>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Helper to send POST requests to analysis endpoints
+    async function postJson(url, payload) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return res.json();
+    }
+
+    // Competitor analysis
+    document.getElementById('competitor-btn').addEventListener('click', async () => {
+        const desc = document.getElementById('competitor-input').value.trim();
+        if (!desc) return;
+        const resultEl = document.getElementById('competitor-result');
+        resultEl.textContent = 'Loading…';
+        try {
+            const data = await postJson('/api/competitor', { project_description: desc });
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            resultEl.textContent = 'Error: ' + e;
+        }
+    });
+
+    // Price analysis
+    document.getElementById('price-btn').addEventListener('click', async () => {
+        const jsonText = document.getElementById('price-input').value.trim();
+        if (!jsonText) return;
+        const resultEl = document.getElementById('price-result');
+        resultEl.textContent = 'Loading…';
+        try {
+            const payload = JSON.parse(jsonText);
+            const data = await postJson('/api/price', payload);
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            resultEl.textContent = 'Error parsing input or calling API: ' + e;
+        }
+    });
+
+    // Risk analysis
+    document.getElementById('risk-btn').addEventListener('click', async () => {
+        const desc = document.getElementById('risk-input').value.trim();
+        if (!desc) return;
+        const resultEl = document.getElementById('risk-result');
+        resultEl.textContent = 'Loading…';
+        try {
+            const data = await postJson('/api/risk', { project_description: desc });
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            resultEl.textContent = 'Error: ' + e;
+        }
+    });
+
+    // Product calculator
+    document.getElementById('calc-btn').addEventListener('click', async () => {
+        const itemsText = document.getElementById('calc-input').value.trim();
+        const discountText = document.getElementById('calc-discount').value.trim();
+        if (!itemsText) return;
+        const resultEl = document.getElementById('calc-result');
+        resultEl.textContent = 'Loading…';
+        try {
+            const items = JSON.parse(itemsText);
+            const discount = discountText ? parseFloat(discountText) : 0;
+            const data = await postJson('/api/calculate', { items: items, discount_rate: discount });
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            resultEl.textContent = 'Error parsing input or calling API: ' + e;
+        }
+    });
+</script>
+{% endblock %}

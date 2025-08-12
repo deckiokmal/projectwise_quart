@@ -1,0 +1,119 @@
+{#
+Base template for all ProjectWise pages.
+
+This file defines the outer HTML structure, navigation bar and
+provides Jinja blocks for page‑specific content and scripts. It
+also includes a simple connection status indicator and buttons
+allowing users to connect/disconnect from the MCP server.
+#}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ProjectWise{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar kiri -->
+        <aside class="sidebar">
+            <div class="sidebar__brand">
+                {% block sidebar_brand %}Projectwise{% endblock %}
+            </div>
+            <nav class="sidebar__nav">
+                {% block sidebar_nav %}
+                <ul>
+                    <li class="{% if request.endpoint == 'main.index' %}active{% endif %}">
+                        <a href="{{ url_for('main.index') }}">Home</a>
+                    </li>
+                    <li class="{% if request.endpoint == 'main.ws_room_page' %}active{% endif %}">
+                        <a href="{{ url_for('main.war_rooms') }}">War Rooms</a>
+                    </li>
+                    <li class="{% if request.endpoint == 'main.chat_page' %}active{% endif %}">
+                        <a href="{{ url_for('main.proposal') }}">Proposal Generation</a>
+                    </li>
+                    <li class="{% if request.endpoint == 'main.analysis' %}active{% endif %}">
+                        <a href="{{ url_for('main.analysis') }}">Budget Analysis</a>
+                    </li>
+                </ul>
+                {% endblock %}
+            </nav>
+            <div class="sidebar__footer">
+                <span class="status" id="conn-status">Disconnected</span>
+                <button id="connect-btn" type="button">Connect</button>
+                <button id="disconnect-btn" type="button" disabled>Disconnect</button>
+            </div>
+            <div class="sidebar__footer">
+                {% block sidebar_footer %}© 2025 ProjectWise{% endblock %}
+            </div>
+        </aside>
+
+        <!-- Konten utama/chat di kanan -->
+        <div class="main">
+            {% block body %}{% endblock %}
+        </div>
+    </div>
+
+    {% block scripts %}{% endblock %}
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"></script>
+
+    <script>
+        // Manage MCP connection buttons
+        async function updateConnStatus() {
+            try {
+                const res = await fetch('/mcp/status');
+                const data = await res.json();
+                const statusEl = document.getElementById('conn-status');
+                const connectBtn = document.getElementById('connect-btn');
+                const disconnectBtn = document.getElementById('disconnect-btn');
+                if (data.connected) {
+                    statusEl.textContent = 'Connected';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                } else {
+                    statusEl.textContent = 'Disconnected';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                }
+            } catch (e) {
+                console.error('Unable to get MCP status:', e);
+            }
+        }
+
+        async function connectMCP() {
+            try {
+                await fetch('/mcp/connect', { method: 'POST' });
+            } catch (e) {
+                console.error('Error connecting:', e);
+            } finally {
+                updateConnStatus();
+            }
+        }
+
+        async function disconnectMCP() {
+            try {
+                await fetch('/mcp/disconnect', { method: 'POST' });
+            } catch (e) {
+                console.error('Error disconnecting:', e);
+            } finally {
+                updateConnStatus();
+            }
+        }
+
+        document.getElementById('connect-btn').addEventListener('click', connectMCP);
+        document.getElementById('disconnect-btn').addEventListener('click', disconnectMCP);
+
+        // Update the connection status when the page loads
+        updateConnStatus();
+    </script>
+</body>
+
+</html>

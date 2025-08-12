@@ -24,7 +24,7 @@ def _get_chat_service() -> ChatWithMemory:
         db_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
         chat_ai = ChatWithMemory(service_configs, db_url)
         # Initialise asynchronously and store the task; callers will await
-        current_app.extensions["chat_ai_init"] = current_app.loop.create_task( # type: ignore
+        current_app.extensions["chat_ai_init"] = current_app.loop.create_task(
             chat_ai.init()
         )
         current_app.extensions["chat_ai"] = chat_ai
@@ -32,7 +32,7 @@ def _get_chat_service() -> ChatWithMemory:
 
 
 @chat_bp.post("/message")
-async def chat_message() -> tuple[any, int] | any: # type: ignore
+async def chat_message() -> tuple[any, int] | any:
     """Process a chat message and return the assistant's reply."""
     data = await request.get_json(force=True)
     user_message = data.get("message", "").strip()

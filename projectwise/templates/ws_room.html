@@ -1,49 +1,138 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'base.html' %}
 
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>ProjectWise Chat — Rooms</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ws_room.css') }}">
-</head>
+{% block title %}Rooms — ProjectWise{% endblock %}
 
-<body>
-    <div class="app">
-        <header class="topbar">
-            <h1>ProjectWise — Chat (Rooms)</h1>
-            <div class="controls">
-                <input id="roomId" placeholder="room id (e.g. proyekA)" />
-                <input id="userId" placeholder="your user id (e.g. andi)" />
-                <button id="btnConnect">Connect</button>
-                <button id="btnDisconnect" disabled>Disconnect</button>
-            </div>
+{% block body %}
+<div class="app-container">
+
+    <main class="main">
+        <header class="main__header">
+            <h1>War Rooms</h1>
         </header>
 
-        <main class="main">
-            <section class="members">
-                <h3>Room:</h3>
-                <div id="currentRoom">—</div>
-                <h3>Members (connected)</h3>
-                <ul id="memberList"></ul>
-            </section>
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+            <input type="text" id="room-id" placeholder="Room name or ID" style="flex:1;">
+            <input type="text" id="user-id" placeholder="Your name" style="flex:1;">
+            <button id="join-room-btn">Join</button>
+            <button id="leave-room-btn" disabled>Leave</button>
+        </div>
 
-            <section class="chat">
-                <div id="log" class="log" aria-live="polite"></div>
+        <section class="main__chat">
+            <!-- Pesan akan ter-render di sini -->
+        </section>
 
-                <form id="msgForm" class="msgForm">
-                    <input id="msgInput" autocomplete="off" placeholder="Type a message..." />
-                    <button type="submit">Send</button>
-                </form>
-            </section>
-        </main>
+        <footer class="main__input">
+            <form id="chat-form" autocomplete="off">
+                <!-- Baris 1: Text input -->
+                <div class="input-row">
+                    <textarea id="chat-input" name="message" placeholder="Ask anything" autocomplete="off" required
+                        rows="1"></textarea>
+                </div>
 
-        <footer class="footer">
-            <small>WebSocket room demo — streaming deltas from MCPClient</small>
+
+                <!-- Baris 2: Upload + Send -->
+                <div class="input-row input-row--actions">
+                    <!-- Tombol “+” dengan dropdown (drop-up) -->
+                    <div class="upload-dropdown">
+                        <button type="button" id="upload-btn" class="btn btn--icon" title="Upload">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                        <!-- Menu drop-up -->
+                        <div id="upload-menu" class="upload-menu hidden">
+                            <button type="button" data-type="kak" class="upload-menu__item">
+                                <i class="fa-regular fa-file-lines"></i> Upload KAK
+                            </button>
+                            <button type="button" data-type="product" class="upload-menu__item">
+                                <i class="fa-solid fa-box"></i> Upload Product
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tombol kirim -->
+                    <button type="submit" class="btn btn--send" title="Send Message">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+
+
+                <!-- Hidden file input -->
+                <input type="file" id="file-input" name="files" class="hidden" multiple />
+            </form>
         </footer>
-    </div>
+    </main>
+</div>
+{% endblock %}
 
-    <script src="{{ url_for('static', filename='js/ws_room.js') }}"></script>
-</body>
+{% block scripts %}
+<script>
+    let ws = null;
 
-</html>
+    function appendWsMessage(sender, content) {
+        const messagesEl = document.getElementById('ws-messages');
+        const div = document.createElement('div');
+        div.classList.add('msg');
+        div.innerHTML = `<strong>${sender}:</strong> ${content}`;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    document.getElementById('join-room-btn').addEventListener('click', () => {
+        const roomId = document.getElementById('room-id').value.trim();
+        const userId = document.getElementById('user-id').value.trim();
+        if (!roomId || !userId) return;
+        if (ws) {
+            ws.close();
+        }
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${roomId}/${userId}`);
+        ws.onopen = () => {
+            appendWsMessage('System', `Connected to room ${roomId} as ${userId}`);
+            document.getElementById('ws-input').disabled = false;
+            document.getElementById('ws-send-btn').disabled = false;
+            document.getElementById('leave-room-btn').disabled = false;
+        };
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'completed') {
+                    appendWsMessage(data.from, data.content);
+                } else {
+                    // fallback: treat as plain message
+                    appendWsMessage('Assistant', event.data);
+                }
+            } catch (_) {
+                appendWsMessage('Assistant', event.data);
+            }
+        };
+        ws.onclose = () => {
+            appendWsMessage('System', 'Disconnected from room');
+            document.getElementById('ws-input').disabled = true;
+            document.getElementById('ws-send-btn').disabled = true;
+            document.getElementById('leave-room-btn').disabled = true;
+        };
+    });
+
+    document.getElementById('leave-room-btn').addEventListener('click', () => {
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+    });
+
+    document.getElementById('ws-send-btn').addEventListener('click', () => {
+        const inputEl = document.getElementById('ws-input');
+        const text = inputEl.value.trim();
+        if (!text || !ws) return;
+        ws.send(JSON.stringify({ message: text }));
+        appendWsMessage('You', text);
+        inputEl.value = '';
+    });
+
+    document.getElementById('ws-input').addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            document.getElementById('ws-send-btn').click();
+        }
+    });
+</script>
+{% endblock %}

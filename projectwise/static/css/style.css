@@ -1,0 +1,121 @@
+/* ProjectWise basic styles */
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f6fa;
+    color: #333;
+}
+
+nav.navbar {
+    background-color: #0053a0;
+    color: #ffffff;
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+nav.navbar a {
+    color: #ffffff;
+    text-decoration: none;
+    margin-right: 1rem;
+    font-weight: bold;
+}
+
+nav.navbar a:hover {
+    text-decoration: underline;
+}
+
+nav.navbar .status {
+    margin-left: auto;
+    margin-right: 1rem;
+    font-style: italic;
+}
+
+nav.navbar button {
+    background-color: #ffffff;
+    border: none;
+    color: #0053a0;
+    padding: 0.4rem 0.7rem;
+    margin-left: 0.3rem;
+    cursor: pointer;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+nav.navbar button:hover {
+    background-color: #e6e6e6;
+}
+
+main.container {
+    padding: 1rem 2rem;
+    max-width: 960px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-radius: 4px;
+}
+
+/* Chat styles */
+#chat-messages {
+    border: 1px solid #ddd;
+    height: 300px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    background-color: #fafafa;
+}
+
+#chat-messages .msg {
+    margin-bottom: 0.5rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    max-width: 80%;
+}
+
+#chat-messages .msg.user {
+    background-color: #d1eaff;
+    align-self: flex-end;
+}
+
+#chat-messages .msg.assistant {
+    background-color: #f3d1ff;
+}
+
+/* Forms and analysis sections */
+section.analysis-tool {
+    margin-bottom: 2rem;
+}
+
+section.analysis-tool textarea,
+section.analysis-tool input[type="text"] {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+section.analysis-tool button {
+    background-color: #0053a0;
+    color: #ffffff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+section.analysis-tool button:hover {
+    background-color: #003f7a;
+}
+
+pre.result {
+    white-space: pre-wrap;
+    background-color: #f0f0f0;
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
