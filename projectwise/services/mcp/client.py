@@ -1,3 +1,4 @@
+# projectwise/services/mcp/client.py
 from __future__ import annotations
 import asyncio
 
@@ -8,14 +9,15 @@ from anyio import ClosedResourceError
 from dotenv import load_dotenv
 
 from projectwise.utils.logger import get_logger
-from projectwise.config import ServiceConfigs
+from quart import current_app
+
 from openai import AsyncOpenAI
 from mcp import ClientSession, JSONRPCError
 from mcp.client.streamable_http import streamablehttp_client
 from jsonschema import validate, ValidationError
 
 load_dotenv()
-settings = ServiceConfigs()
+settings = current_app.extensions["service_configs"]
 logger = get_logger("MCPClient")
 
 
@@ -232,17 +234,22 @@ class MCPClient:
 
         try:
             resp = await self.session.list_tools()  # type: ignore
-            self.tool_cache = [
-                {
-                    "type": "function",
-                    "function": {
+            self.tool_cache = []
+            for t in resp.tools:
+                self.tool_cache.append(
+                    {
                         "name": t.name,
+                        "title": t.title,
                         "description": t.description,
-                        "parameters": t.inputSchema,
-                    },
-                }
-                for t in resp.tools
-            ]
+                        "inputSchema": t.inputSchema,  # simpan schema asli
+                        "function": {  # format untuk LLM function calling
+                            "name": t.name,
+                            "description": t.description,
+                            "parameters": t.inputSchema,
+                        },
+                    }
+                )
+
             logger.debug("Tool cache refreshed (%d tools)", len(self.tool_cache))
         except Exception as e:
             logger.warning("refresh_tool_cache failed: %s", e, exc_info=True)

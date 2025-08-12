@@ -1,0 +1,15 @@
+[2025-08-12 03:26:40,469] INFO in manager: Memory relevance score=0.200 (sufficient=False)
+[2025-08-12 03:26:43,577] INFO in manager: Intent classified: other (conf=0.90)
+[2025-08-12 03:27:44,415] INFO in manager: Memory relevance score=0.300 (sufficient=False)
+[2025-08-12 03:27:46,516] INFO in manager: Intent classified: generate_proposal (conf=0.95)
+[2025-08-12 03:27:48,811] WARNING in manager: Could not parse JSON from LLM decision: Expecting value: line 1 column 1 (char 0)
+[2025-08-12 03:27:50,361] INFO in manager: Executing plan step 1: get_template_placeholders
+[2025-08-12 03:27:51,047] INFO in manager: Executing plan step 2: list_metadata_entries
+[2025-08-12 03:29:54,822] INFO in manager: Memory relevance score=0.800 (sufficient=True)
+[2025-08-12 03:31:23,432] INFO in manager: Memory relevance score=0.900 (sufficient=True)
+[2025-08-12 03:32:23,760] INFO in manager: Memory relevance score=0.800 (sufficient=True)
+[2025-08-12 03:36:45,880] INFO in manager: Memory relevance score=0.900 (sufficient=True)
+[2025-08-12 03:37:40,680] INFO in manager: Memory relevance score=0.000 (sufficient=False)
+[2025-08-12 03:37:42,065] INFO in manager: Intent classified: other (conf=0.90)
+[2025-08-12 03:38:23,637] INFO in manager: Memory relevance score=0.200 (sufficient=False)
+[2025-08-12 03:38:25,902] INFO in manager: Intent classified: other (conf=0.90)

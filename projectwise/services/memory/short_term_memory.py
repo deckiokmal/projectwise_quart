@@ -1,4 +1,4 @@
-# /services/memory/short_term_memory.py
+# projectwise/services/memory/short_term_memory.py
 from typing import Optional
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, select

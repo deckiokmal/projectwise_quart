@@ -1,3 +1,4 @@
+# projectwise/routes/chat_ws_room.py
 import json
 from quart import Blueprint, websocket, current_app
 
@@ -37,6 +38,7 @@ async def chat_ws_room(room_id, user_id):
             mcp_client = current_app.extensions["mcp"]
             stm = current_app.extensions["short_term_memory"]
             ltm = current_app.extensions["long_term_memory"]
+            service_configs = current_app.extensions["service_configs"]
 
             # Ambil memori relevan dari LTM
             relevant_memories = await ltm.get_memories(
@@ -63,8 +65,8 @@ async def chat_ws_room(room_id, user_id):
 
             # Streaming response dari MCPClient
             assistant_reply_parts = []
-            async with mcp_client.responses.stream(
-                model=current_app.config.get("LLM_MODEL", "gpt-4o-mini"),
+            async with mcp_client.llm.responses.stream(
+                model=service_configs.llm_model,
                 input=messages_for_llm,
             ) as stream:
                 async for event in stream:

@@ -86,3 +86,21 @@
 [2025-08-12 02:28:28,759] INFO in client: call_tool "heartbeat" args={}
 [2025-08-12 02:28:45,102] INFO in client: keep_alive loop cancelled
 [2025-08-12 02:28:45,103] INFO in client: tools_updater cancelled
+[2025-08-12 03:13:40,345] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 03:13:40,392] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 03:16:36,352] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 03:18:35,895] INFO in client: tools_updater cancelled
+[2025-08-12 03:18:35,896] INFO in client: keep_alive loop cancelled
+[2025-08-12 03:26:23,322] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 03:26:23,351] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 03:27:50,362] INFO in client: call_tool "get_template_placeholders" args={}
+[2025-08-12 03:27:51,048] INFO in client: call_tool "list_metadata_entries" args={}
+[2025-08-12 03:29:51,319] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 03:32:21,763] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 03:35:39,577] INFO in client: tools_updater cancelled
+[2025-08-12 03:35:39,578] INFO in client: keep_alive loop cancelled
+[2025-08-12 03:36:19,709] INFO in client: MCP session initialized with elicitation support
+[2025-08-12 03:36:19,737] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
+[2025-08-12 03:38:21,753] INFO in client: call_tool "heartbeat" args={}
+[2025-08-12 03:40:29,352] INFO in client: tools_updater cancelled
+[2025-08-12 03:40:29,353] INFO in client: keep_alive loop cancelled

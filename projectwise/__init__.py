@@ -1,3 +1,4 @@
+# projectwise/__init__.py
 import os
 from quart import Quart
 from .config import get_config

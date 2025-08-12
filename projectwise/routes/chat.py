@@ -1,3 +1,4 @@
+# projectwise/routes/chat.py
 from quart import Blueprint, request, jsonify, current_app, render_template
 
 chat_bp = Blueprint(
@@ -48,6 +49,7 @@ async def chat_mem():
     mcp_client = current_app.extensions["mcp"]
     stm = current_app.extensions["short_term_memory"]
     ltm = current_app.extensions["long_term_memory"]
+    service_configs = current_app.extensions["service_configs"]
 
     # Ambil memori relevan dari LTM
     relevant_memories = await ltm.get_memories(user_message, user_id=user_id)
@@ -65,8 +67,9 @@ async def chat_mem():
 
     # Panggil LLM via MCPClient
     try:
-        response = await mcp_client.responses.create(
-            model=current_app.config.get("LLM_MODEL", "gpt-4o-mini"),
+        
+        response = await mcp_client.llm.responses.create(
+            model=service_configs.llm_model,
             input=messages_for_llm,
         )
         assistant_reply = response.output_text or ""
