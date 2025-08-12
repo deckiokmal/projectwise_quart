@@ -1,1 +1,0 @@
-[2025-08-13 01:32:43,774] INFO in short_term_memory: ShortTermMemory initialized with DB: sqlite+aiosqlite:///D:/1. PROJECTS/projectwise_quart/database/chat_memory.sqlite

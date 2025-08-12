@@ -1,2 +1,0 @@
-[2025-08-13 01:32:43,588] INFO in client: MCP session initialized with elicitation support
-[2025-08-13 01:32:43,656] INFO in client: Initial tools: ['heartbeat', 'list_kak_files', 'list_product_files', 'add_product_knowledge', 'add_kak_tor_knowledge', 'summarize_kak_with_llm', 'rag_retrieval', 'list_metadata_entries', 'reset_vector_database', 'reset_and_reingest_all', 'read_project_markdown', 'get_template_placeholders', 'generate_proposal_docx', 'websearch']
