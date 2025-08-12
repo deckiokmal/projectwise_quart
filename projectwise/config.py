@@ -1,4 +1,6 @@
-# projectwise/config.py
+# projectwise/config.
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -19,10 +21,9 @@ class ServiceConfigs(BaseSettings):
 
     mcp_server_url: str = "http://localhost:5000/projectwise/mcp/"
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    ollama_host: str = "http://localhost:11434"
     llm_model: str = "gpt-4o-mini"
     embed_model: str = "text-embedding-3-small"
-    llm_temperature: float = 0.0
+    llm_temperature: float = 0.2
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     log_retention: int = 90
@@ -81,7 +82,8 @@ config_map = {
 }
 
 
-def get_config(env: str | None = None):
+def get_config(env: str | None = None) -> type[BaseConfig]:
+    """Return the configuration class corresponding to the given environment."""
     if not env:
         env = os.getenv("APP_ENV", "default")
     return config_map.get(env, config_map["default"])

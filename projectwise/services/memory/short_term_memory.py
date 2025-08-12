@@ -1,4 +1,6 @@
 # projectwise/services/memory/short_term_memory.py
+from __future__ import annotations
+
 from typing import Optional
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, select

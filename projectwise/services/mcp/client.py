@@ -1,7 +1,7 @@
 # projectwise/services/mcp/client.py
 from __future__ import annotations
-import asyncio
 
+import asyncio
 from contextlib import AsyncExitStack, suppress
 from typing import Any, Dict, List, Optional
 
@@ -9,7 +9,7 @@ from anyio import ClosedResourceError
 from dotenv import load_dotenv
 
 from projectwise.utils.logger import get_logger
-from quart import current_app
+from projectwise.config import ServiceConfigs
 
 from openai import AsyncOpenAI
 from mcp import ClientSession, JSONRPCError
@@ -17,7 +17,7 @@ from mcp.client.streamable_http import streamablehttp_client
 from jsonschema import validate, ValidationError
 
 load_dotenv()
-settings = current_app.extensions["service_configs"]
+settings = ServiceConfigs()
 logger = get_logger("MCPClient")
 
 

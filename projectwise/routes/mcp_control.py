@@ -1,19 +1,27 @@
-# projectwise/routes/mcp_control.py
+"""
+Blueprint to monitor and control the MCP client connection.
+
+This blueprint exposes endpoints to check the connection status,
+trigger a reconnect and gracefully shutdown the MCP client.  These
+are useful for operational monitoring and remote management of the
+running server.
+"""
+
+from __future__ import annotations
+
 from quart import Blueprint, current_app, jsonify
 from ..utils.logger import get_logger
+
 
 mcp_control_bp = Blueprint("mcp_control", __name__)
 logger = get_logger(__name__)
 
 
 @mcp_control_bp.route("/status", methods=["GET"])
-async def status():
-    """
-    Cek status koneksi MCP.
-    """
+async def status() -> any: # type: ignore
+    """Return the status of the MCP client connection."""
     mcp_client = current_app.extensions["mcp"]
     service_configs = current_app.extensions["service_configs"]
-
     is_connected = getattr(mcp_client, "_connected", False)
     return jsonify(
         {
@@ -25,12 +33,9 @@ async def status():
 
 
 @mcp_control_bp.route("/reconnect", methods=["POST"])
-async def reconnect():
-    """
-    Lakukan reconnect MCPClient.
-    """
+async def reconnect() -> tuple[any, int] | any: # type: ignore
+    """Force the MCP client to reconnect."""
     mcp_client = current_app.extensions["mcp"]
-
     try:
         await mcp_client._ensure_reconnected()
         return jsonify({"status": "reconnected"})
@@ -40,12 +45,9 @@ async def reconnect():
 
 
 @mcp_control_bp.route("/shutdown", methods=["POST"])
-async def shutdown():
-    """
-    Tutup koneksi MCPClient.
-    """
+async def shutdown() -> tuple[any, int] | any: # type: ignore
+    """Shutdown the MCP client connection."""
     mcp_client = current_app.extensions["mcp"]
-
     try:
         await mcp_client.shutdown()
         return jsonify({"status": "shutdown"})
