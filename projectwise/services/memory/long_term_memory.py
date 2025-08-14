@@ -87,7 +87,13 @@ class Mem0Manager:
         """Simpan *messages* (urutan dialog) ke memori."""
         await self.init()
         try:
-            await self.memory.add(messages=messages, user_id=user_id)
+            # Saring hanya item valid {role, content} string
+            clean = [m for m in messages if isinstance(m, dict) and "role" in m and "content" in m and isinstance(m["content"], str)]
+            if not clean:
+                logger.warning("Lewati add_conversation: messages kosong atau tidak valid")
+                return
+            
+            await self.memory.add(messages=clean, user_id=user_id, agent_id="projectwise")
         except Exception as e:
             logger.error(f"Gagal menambah memori: {e}")
 

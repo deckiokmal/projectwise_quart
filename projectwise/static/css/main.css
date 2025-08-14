@@ -1,392 +1,690 @@
-/* =====================
-   1. RESET & BASE
-   ===================== */
+/* ==========================================================================
+   PROJECTWISE — DARK, FUTURISTIC, RESPONSIVE UI
+   File: static/css/main.css
+   ========================================================================== */
+
+/* -----------------------------
+   1) RESET & TOKENS
+------------------------------*/
+:root {
+    --topbar-h: 64px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+
+    --space-1: .25rem;
+    --space-2: .5rem;
+    --space-3: .75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+
+    --shadow-1: 0 4px 18px rgba(0, 0, 0, .25);
+    --shadow-2: 0 8px 28px rgba(0, 0, 0, .35);
+    --shadow-inset: inset 0 0 0 1px rgba(255, 255, 255, .05);
+
+    /* Light (fallback) */
+    --bg: #0b0f17;
+    --bg-elev: #0f1522;
+    --bg-soft: #11192a;
+    --panel: #0f1628;
+    --border: #1d2840;
+    --text: #dbe7ff;
+    --text-muted: #9fb0d3;
+
+    --brand: #6ea8fe;
+    /* aksen utama */
+    --brand-2: #a78bfa;
+    /* aksen sekunder */
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #f97373;
+}
+
+@media (max-width: 768px) {
+    :root {
+        --topbar-h: 56px;
+    }
+}
+
 *,
 *::before,
 *::after {
-    margin: 0;
-    padding: 0;
     box-sizing: border-box;
 }
 
 html,
 body {
     height: 100%;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #343541;
-    color: #e5e5e5;
-}
-
-/* =====================
-   2. LAYOUT UTAMA
-   ===================== */
-.app-container {
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-}
-
-/* Sidebar kiri */
-.sidebar {
-    width: 260px;
-    background: #202123;
-    display: flex;
-    flex-direction: column;
-}
-
-.sidebar__brand {
-    padding: 1.5rem;
-    border-bottom: 1px solid #333;
-    text-align: center;
-}
-
-.sidebar__brand h2 {
-    color: #fff;
-    font-size: 1.25rem;
-}
-
-.sidebar__nav {
-    flex: 1;
-    overflow-y: auto;
-}
-
-.sidebar__nav ul {
-    list-style: none;
-}
-
-.sidebar__nav a {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    color: #fff;
-    font-size: 0.9rem;
-    text-decoration: none;
-    transition: background .2s;
-}
-
-.sidebar__nav a i {
-    margin-right: 0.75rem;
-}
-
-.sidebar__nav li.active a,
-.sidebar__nav a:hover {
-    background: #343541;
-}
-
-.sidebar__footer {
-    padding: 1rem;
-    border-top: 1px solid #333;
-    font-size: 0.85rem;
-    text-align: center;
-    opacity: 0.6;
-}
-
-/* Konten utama */
-.main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: #343541;
-}
-
-/* Header */
-.main__header {
-    padding: 2rem;
-    border-bottom: 1px solid #444654;
-}
-
-.main__header h1 {
-    font-size: 1.5rem;
-    font-weight: normal;
-    color: #fff;
-}
-
-/* Area chat */
-.main__chat {
-    flex: 1;
-    padding: 1rem;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-.main__chat::-webkit-scrollbar {
-    width: 6px;
-}
-
-.main__chat::-webkit-scrollbar-thumb {
-    background: #555;
-    border-radius: 3px;
-}
-
-/* =====================
-   3. BUBBLE PESAN
-   ===================== */
-.message {
-    display: block;
-    max-width: 70%;
-    margin-bottom: 1rem;
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    line-height: 1.4;
-    background: #202123;
-    color: #e5e5e5;
-
-    /* Paksakan wrap pada teks panjang atau tanpa spasi */
-    white-space: pre-wrap !important;
-    word-wrap: break-word !important;
-    overflow-wrap: break-word !important;
-    word-break: break-all !important;
-}
-
-.message.user {
-    background: #444654;
-    margin-left: auto;
-    margin-right: 0;
-    text-align: left;
-}
-
-.message.assistant {
-    background: #202123;
-    margin-right: auto;
-    margin-left: 0;
-    text-align: left;
-}
-
-/* Markdown elements */
-.message p {
-    margin: 0.5rem 0;
-}
-
-.message h1,
-.message h2,
-.message h3,
-.message h4,
-.message h5,
-.message h6 {
-    margin: 0.75rem 0 0.25rem;
-    font-weight: bold;
-}
-
-.message ul,
-.message ol {
-    margin: 0.5rem 0 0.5rem 1.25rem;
-}
-
-.message li {
-    margin: 0.25rem 0;
-}
-
-.message blockquote {
-    margin: 0.5rem 1rem;
-    padding-left: 1rem;
-    border-left: 4px solid #888;
-    color: #ccc;
-    font-style: italic;
-}
-
-.message pre {
-    background: #1e1e1e;
-    color: #dcdcdc;
-    padding: 1rem;
-    border-radius: 6px;
-    overflow-x: auto;
-    font-family: monospace;
-    margin: 0.5rem 0;
-}
-
-.message code {
-    padding: 0.2rem 0.4rem;
-    border-radius: 4px;
-    font-family: monospace;
-
-    /* Paksakan wrap juga di inline code */
-    white-space: pre-wrap !important;
-    word-wrap: break-word !important;
-    overflow-wrap: break-word !important;
-    word-break: break-all !important;
-}
-
-.message table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 0.5rem 0;
-}
-
-.message th,
-.message td {
-    border: 1px solid #444;
-    padding: 0.5rem;
-    text-align: left;
-}
-
-.message a {
-    color: #10a37f;
-    text-decoration: underline;
-}
-
-/* =====================
-   4. INPUT FOOTER
-   ===================== */
-.main__input {
-    border-top: 1px solid #444654;
-    padding: 0.5rem 1rem;
-    background: transparent;
-}
-
-.main__input form {
-    display: flex;
-    flex-direction: column;
-    background-color: #202123;
-    border-radius: 6px;
-    padding: 0.5rem;
-    width: 100%;
-}
-
-.input-row {
-    width: 100%;
     margin: 0;
+    padding: 0;
+    color-scheme: dark;
 }
 
-.input-row+.input-row {
-    margin-top: 0.5rem;
+body.theme-dark {
+    background: radial-gradient(1200px 600px at 10% -10%, rgba(72, 95, 199, .12), transparent 60%),
+        radial-gradient(1000px 500px at 90% 10%, rgba(167, 139, 250, .10), transparent 60%),
+        var(--bg);
+    color: var(--text);
+    font: 400 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    letter-spacing: .2px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-#chat-input {
-    width: 100%;
-    flex: 1;
-    min-height: 2.5rem;
-    max-height: 150px;
-    padding: 0.5rem 1rem;
-    font-size: 1rem;
-    line-height: 1.4;
-    color: #e5e5e5;
+/* Scrollbar */
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: #1a2439;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-track {
     background: transparent;
-    border: none;
-    border-radius: 4px;
-    resize: none;
-    overflow-y: hidden;
-    transition: height 0.1s ease-out;
-    box-sizing: border-box;
 }
 
-#chat-input.scrolled {
-    overflow-y: auto;
+/* Focus ring */
+:where(a, button, input, textarea, [tabindex]) :focus {
+    outline: none;
 }
 
-.input-row--actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+:where(a, button, input, textarea, [tabindex]):focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--brand) 70%, white 30%);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
 }
 
-.upload-dropdown {
-    position: relative;
-    display: inline-block;
-}
-
-#upload-btn {
-    background: none;
-    border: none;
-    font-size: 1.25rem;
-    color: #aaa;
-    cursor: pointer;
-    padding: 0 8px;
-    transition: color .2s;
-}
-
-#upload-btn:hover {
-    color: #fff;
-}
-
-.upload-menu {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    margin-bottom: 0.4rem;
-    background: #202123;
-    border: 1px solid #444654;
-    border-radius: 6px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    min-width: 180px;
-    z-index: 100;
-    overflow: hidden;
-}
-
-.upload-menu.hidden {
-    display: none;
-}
-
-.upload-menu__item {
-    width: 100%;
-    padding: 0.6rem 1rem;
-    background: none;
-    border: none;
-    color: #e5e5e5;
-    text-align: left;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    cursor: pointer;
-    transition: background .2s;
-}
-
-.upload-menu__item:hover {
-    background: #343541;
-}
-
-.upload-menu__item i {
-    font-size: 1rem;
-    color: #10a37f;
-}
-
-.btn--send {
-    background: #10a37f;
-    border: none;
-    color: #fff;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background .2s;
-}
-
-.btn--send:hover {
-    background: #0e8c6a;
-}
-
-/* =====================
-   5. UTILITIES & MODAL
-   ===================== */
+/* Utils */
 .hidden {
     display: none !important;
 }
 
-.btn--icon {
-    background: #10a37f;
-    border: none;
-    color: #fff;
-    font-size: 1.1rem;
-    padding: 0.5rem;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background .2s;
+.visually-hidden {
+    position: absolute !important;
+    clip: rect(1px, 1px, 1px, 1px);
+    clip-path: inset(50%);
+    height: 1px;
+    width: 1px;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
-.btn--icon:hover {
-    background: #0e8c6a;
-}
-
-.modal {
+/* -----------------------------
+   2) TOPBAR
+------------------------------*/
+.topbar {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
+    inset: 0 0 auto 0;
+    height: var(--topbar-h);
+    background: linear-gradient(180deg, rgba(16, 22, 39, .92), rgba(16, 22, 39, .82));
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    z-index: 1000;
+}
+
+.topbar__inner {
+    max-width: 1280px;
+    margin: 0 auto;
     height: 100%;
+    padding: 0 var(--space-4);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.topbar__brand {
+    font-weight: 700;
+    letter-spacing: .3px;
+    font-size: 18px;
+    color: var(--text);
     display: flex;
     align-items: center;
+    gap: .5rem;
+}
+
+.topbar__nav {
+    justify-self: center;
+}
+
+.topbar__menu {
+    display: flex;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.topbar__item {}
+
+.topbar__link {
+    display: inline-flex;
+    align-items: center;
+    padding: .5rem .75rem;
+    border-radius: 999px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: 200ms ease;
+}
+
+.topbar__link:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, .04);
+}
+
+.topbar__item.active .topbar__link {
+    color: var(--text);
+    background: linear-gradient(180deg, rgba(110, 168, 254, .15), rgba(110, 168, 254, .07));
+    box-shadow: 0 0 0 1px rgba(110, 168, 254, .25) inset;
+}
+
+.topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.topbar__toggle {
+    display: none;
+    /* tampilkan di mobile */
+}
+
+@media (max-width: 900px) {
+    .topbar__nav {
+        display: none;
+    }
+
+    .topbar__toggle {
+        display: inline-flex;
+    }
+
+    body.topbar-open .topbar__nav {
+        display: block;
+        position: fixed;
+        top: var(--topbar-h);
+        left: 0;
+        right: 0;
+        background: color-mix(in oklab, var(--bg-elev) 90%, black 10%);
+        border-bottom: 1px solid var(--border);
+        z-index: 999;
+    }
+
+    body.topbar-open .topbar__menu {
+        flex-direction: column;
+        gap: 0;
+        padding: var(--space-2);
+    }
+
+    body.topbar-open .topbar__link {
+        border-radius: var(--radius-md);
+        padding: .75rem 1rem;
+    }
+}
+
+/* MCP status badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .5ch;
+    padding: .25rem .5rem;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1;
+    letter-spacing: .2px;
+    background: #1a2439;
+    color: var(--text-muted);
+    box-shadow: var(--shadow-inset);
+}
+
+.badge--ok {
+    background: color-mix(in oklab, var(--success) 20%, #12221a 80%);
+    color: #b6f3c4;
+}
+
+.badge--warn {
+    background: color-mix(in oklab, var(--warning) 20%, #221c12 80%);
+    color: #ffe1a4;
+}
+
+.badge--danger {
+    background: color-mix(in oklab, var(--danger) 20%, #221213 80%);
+    color: #ffc2c2;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    z-index: 200;
+    gap: .5rem;
+    height: 36px;
+    padding: 0 .9rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    background: linear-gradient(180deg, rgba(25, 36, 61, .9), rgba(16, 22, 39, .9));
+    box-shadow: var(--shadow-inset);
+    cursor: pointer;
+    transition: 160ms ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .25), var(--shadow-inset);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn[disabled] {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.btn--primary {
+    border-color: color-mix(in oklab, var(--brand) 40%, var(--border) 60%);
+    background: linear-gradient(180deg, color-mix(in oklab, var(--brand) 25%, #16243d 75%), #0f1930);
+    box-shadow: 0 10px 24px rgba(110, 168, 254, .25);
+}
+
+.btn--outline {
+    background: transparent;
+    border-color: color-mix(in oklab, var(--brand) 40%, var(--border) 60%);
+    color: var(--brand);
+}
+
+.btn--ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-muted);
+}
+
+.btn--icon {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 12px;
+}
+
+@media (max-width: 380px) {
+    .btn--icon {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* -----------------------------
+   3) PAGE LAYOUT
+------------------------------*/
+.page {
+    min-height: 100dvh;
+}
+
+.page__offset {
+    height: var(--topbar-h);
+}
+
+.main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-4) var(--space-6);
+}
+
+/* -----------------------------
+   4) CHAT LAYOUT
+------------------------------*/
+.chat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: calc(100dvh - var(--topbar-h) - var(--space-6));
+}
+
+.chat__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: linear-gradient(180deg, rgba(20, 30, 52, .75), rgba(16, 22, 39, .75));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+}
+
+.chat__title {
+    display: inline-flex;
+    align-items: center;
+    gap: .75rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.chat__title i {
+    color: var(--brand);
+}
+
+.chat__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    color: var(--text-muted);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #4b5563;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, .25);
+}
+
+.status-dot--online {
+    background: var(--success);
+}
+
+/* Messages area */
+.chat__messages {
+    position: relative;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: var(--space-4);
+    background: linear-gradient(180deg, rgba(17, 25, 42, .55), rgba(12, 18, 33, .55));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+}
+
+/* Empty state */
+.empty-state {
+    max-width: 560px;
+    margin: 10vh auto;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.empty-state__icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto var(--space-3);
+    display: grid;
+    place-items: center;
+    border-radius: 20px;
+    color: var(--brand);
+    background: radial-gradient(120px 80px at 50% 0%, rgba(110, 168, 254, .18), transparent),
+        #0f172a;
+    box-shadow: var(--shadow-1);
+}
+
+.empty-state__title {
+    margin: 0 0 var(--space-2);
+    color: var(--text);
+    font-size: 20px;
+    letter-spacing: .3px;
+}
+
+.empty-state__desc {
+    margin: 0 0 var(--space-4);
+}
+
+.empty-state__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: center;
+}
+
+.chip {
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, .03);
+    color: var(--text);
+    padding: .5rem .75rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: 160ms ease;
+}
+
+.chip:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, .06);
+}
+
+/* Typing indicator */
+.typing {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    width: fit-content;
+    margin: var(--space-2) 0 0;
+    padding: .5rem .6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-inset);
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--text-muted);
+    animation: blink 1.2s infinite ease-in-out;
+}
+
+.dot:nth-child(2) {
+    animation-delay: .15s;
+}
+
+.dot:nth-child(3) {
+    animation-delay: .3s;
+}
+
+@keyframes blink {
+
+    0%,
+    80%,
+    100% {
+        transform: translateY(0);
+        opacity: .5;
+    }
+
+    40% {
+        transform: translateY(-2px);
+        opacity: 1;
+    }
+}
+
+/* Message bubbles (dipakai JS) */
+.msg {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.msg__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: #0f172a;
+    display: grid;
+    place-items: center;
+    color: var(--brand-2);
+    border: 1px solid var(--border);
+}
+
+.msg__content {
+    max-width: 100%;
+    padding: .75rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, .03);
+    color: var(--text);
+    box-shadow: var(--shadow-inset);
+}
+
+.msg__content p {
+    margin: 0 0 .5rem;
+}
+
+.msg__meta {
+    margin-top: .25rem;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+/* User vs Assistant variants */
+.msg--user {
+    grid-template-columns: 1fr 36px;
+}
+
+.msg--user .msg__avatar {
+    order: 2;
+    color: var(--brand);
+}
+
+.msg--user .msg__content {
+    background: linear-gradient(180deg, rgba(110, 168, 254, .10), rgba(110, 168, 254, .06));
+    border-color: color-mix(in oklab, var(--brand) 35%, var(--border) 65%);
+}
+
+.msg--assistant .msg__content {
+    background: linear-gradient(180deg, rgba(167, 139, 250, .10), rgba(167, 139, 250, .05));
+    border-color: color-mix(in oklab, var(--brand-2) 35%, var(--border) 65%);
+}
+
+/* -----------------------------
+   5) INPUT BAR (HORIZONTAL)
+------------------------------*/
+.main__input {
+    /* container footer area */
+}
+
+.input-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: linear-gradient(180deg, rgba(18, 26, 45, .75), rgba(12, 18, 33, .75));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+}
+
+.upload-dropdown {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.upload-menu {
+    position: absolute;
+    bottom: calc(100% + .5rem);
+    left: 0;
+    min-width: 190px;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: .5rem;
+    background: color-mix(in oklab, var(--bg-elev) 92%, black 8%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-2);
+    z-index: 40;
+}
+
+.upload-menu::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    top: 100%;
+    border-width: 6px;
+    border-style: solid;
+    border-color: color-mix(in oklab, var(--bg-elev) 92%, black 8%) transparent transparent transparent;
+}
+
+.upload-menu__item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .55rem .6rem;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: 140ms ease;
+    white-space: nowrap;
+}
+
+.upload-menu__item:hover {
+    background: rgba(255, 255, 255, .06);
+    border-color: var(--border);
+}
+
+.chat-textarea {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 40px;
+    max-height: 45vh;
+    resize: none;
+    overflow-y: auto;
+    padding: .7rem .9rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    color: var(--text);
+    background: rgba(255, 255, 255, .03);
+    box-shadow: var(--shadow-inset);
+}
+
+/* Send */
+.btn--send {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 14px;
+    border-color: color-mix(in oklab, var(--brand) 40%, var(--border) 60%);
+    background: radial-gradient(80px 50px at 50% 0%, rgba(110, 168, 254, .18), transparent 60%),
+        linear-gradient(180deg, color-mix(in oklab, var(--brand) 25%, #16243d 75%), #0f1930);
+    box-shadow: 0 16px 30px rgba(110, 168, 254, .25);
+}
+
+/* Attachment preview */
+.attachment-preview {
+    margin-top: var(--space-2);
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.attachment-preview>.item {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .45rem .6rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+}
+
+/* -----------------------------
+   6) MODALS
+------------------------------*/
+.modal {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    z-index: 1200;
 }
 
 .modal.hidden {
@@ -395,86 +693,107 @@ body {
 
 .modal__backdrop {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background: rgba(3, 6, 14, .6);
+    backdrop-filter: blur(3px);
 }
 
 .modal__dialog {
     position: relative;
-    background: #202123;
-    padding: 1.5rem;
-    border-radius: 6px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    color: #e5e5e5;
-    z-index: 201;
+    width: min(560px, 92vw);
+    background: color-mix(in oklab, var(--bg-elev) 96%, black 4%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-2);
+    overflow: hidden;
 }
 
 .modal__header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-}
-
-.modal__header h2 {
-    font-size: 1.25rem;
-    margin: 0;
+    justify-content: space-between;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border);
 }
 
 .modal__close {
-    background: none;
+    background: transparent;
     border: none;
-    font-size: 1.5rem;
-    color: #e5e5e5;
+    color: var(--text-muted);
+    font-size: 22px;
     cursor: pointer;
 }
 
-.modal__form .form-group {
-    margin-bottom: 1rem;
+.modal__form {
+    padding: var(--space-4);
+    display: grid;
+    gap: var(--space-4);
 }
 
-.modal__form label {
-    display: block;
-    margin-bottom: 0.25rem;
-    font-size: 0.9rem;
+.form-group {
+    display: grid;
+    gap: .4rem;
 }
 
-.modal__form input[type="text"],
-.modal__form input[type="number"],
-.modal__form input[type="file"] {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #444654;
-    border-radius: 4px;
-    background: #343541;
-    color: #e5e5e5;
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: .6rem .75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    color: var(--text);
+    background: rgba(255, 255, 255, .03);
 }
 
 .modal__actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.5rem;
+    gap: .5rem;
 }
 
-.modal__actions button {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
+/* -----------------------------
+   7) TOASTS
+------------------------------*/
+#toast-root {
+    position: fixed;
+    right: var(--space-4);
+    bottom: var(--space-4);
+    display: grid;
+    gap: var(--space-2);
+    z-index: 1300;
 }
 
-.modal__actions button[type="button"] {
-    background: #444654;
-    color: #e5e5e5;
+.toast {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .6rem .8rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--bg-elev) 92%, black 8%);
+    color: var(--text);
+    box-shadow: var(--shadow-1);
 }
 
-.modal__actions button[type="submit"] {
-    background: #10a37f;
-    color: #fff;
+.toast--ok {
+    border-color: color-mix(in oklab, var(--success) 35%, var(--border) 65%);
+}
+
+.toast--warn {
+    border-color: color-mix(in oklab, var(--warning) 35%, var(--border) 65%);
+}
+
+.toast--error {
+    border-color: color-mix(in oklab, var(--danger) 35%, var(--border) 65%);
+}
+
+/* -----------------------------
+   8) REDUCED MOTION
+------------------------------*/
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
 }

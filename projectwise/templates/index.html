@@ -1,125 +1,87 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% block title %}Chat • ProjectWise{% endblock %}
 
-{% block title %}Chat — ProjectWise{% endblock %}
+{% block head %}
+{# Tambahkan head khusus halaman ini jika perlu #}
+{% endblock %}
 
 {% block body %}
-<div class="app-container">
-  <!-- Sidebar tetap seperti sebelumnya... -->
+<section class="chat">
+  <!-- Header kecil halaman chat (opsional, bisa di-hide via CSS) -->
+  <header class="chat__header" aria-label="Chat Header">
+    <div class="chat__title">
+      <i class="fa-solid fa-robot"></i>
+      ProjectWise Assistant
+    </div>
+    <div class="chat__meta">
+      <span class="status-dot status-dot--online"></span>
+      <span class="chat__meta-text">Online</span>
+    </div>
+  </header>
 
-  <main class="main">
-    <header class="main__header">
-      <h1>Hi there!</h1>
-    </header>
+  <!-- Area pesan (scrollable) -->
+  <section id="chat-scroll" class="chat__messages" aria-live="polite" aria-label="Messages">
+    <!-- Empty state (akan disembunyikan saat ada pesan) -->
+    <div id="empty-state" class="empty-state">
+      <div class="empty-state__icon">
+        <i class="fa-solid fa-sparkles"></i>
+      </div>
+      <h2 class="empty-state__title">Mulai percakapan</h2>
+      <p class="empty-state__desc">
+        Tanyakan apa saja tentang tender, proposal, pricing, atau automasi jaringan.
+      </p>
+      <div class="empty-state__chips">
+        <button class="chip" data-chip="analisis_kak">Analisis KAK/TOR</button>
+        <button class="chip" data-chip="hitung_harga">Hitung Harga</button>
+        <button class="chip" data-chip="rencana_eksekusi">Rencana Eksekusi</button>
+        <button class="chip" data-chip="buat_proposal">Buat Proposal</button>
+      </div>
+    </div>
 
-    <section class="main__chat">
-      <!-- Pesan akan ter-render di sini -->
-    </section>
+    <!-- Typing indicator -->
+    <div id="typing" class="typing hidden" aria-hidden="true" aria-label="Assistant is typing">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+  </section>
 
-    <footer class="main__input">
-      <form id="chat-form" autocomplete="off">
-        <!-- Baris 1: Text input -->
-        <div class="input-row">
-          <textarea id="chat-input" name="message" placeholder="Ask anything" autocomplete="off" required
-            rows="1"></textarea>
-        </div>
-
-
-        <!-- Baris 2: Upload + Send -->
-        <div class="input-row input-row--actions">
-          <!-- Tombol “+” dengan dropdown (drop-up) -->
-          <div class="upload-dropdown">
-            <button type="button" id="upload-btn" class="btn btn--icon" title="Upload">
-              <i class="fa-solid fa-plus"></i>
-            </button>
-            <!-- Menu drop-up -->
-            <div id="upload-menu" class="upload-menu hidden">
-              <button type="button" data-type="kak" class="upload-menu__item">
-                <i class="fa-regular fa-file-lines"></i> Upload KAK
-              </button>
-              <button type="button" data-type="product" class="upload-menu__item">
-                <i class="fa-solid fa-box"></i> Upload Product
-              </button>
-            </div>
-          </div>
-
-          <!-- Tombol kirim -->
-          <button type="submit" class="btn btn--send" title="Send Message">
-            <i class="fa-solid fa-paper-plane"></i>
+  <!-- Input bar (horizontal) -->
+  <footer class="chat__input main__input" aria-label="Chat Input">
+    <form id="chat-form" class="input-bar" autocomplete="off">
+      <!-- Tombol “+” + drop-up -->
+      <div class="upload-dropdown">
+        <button type="button" id="upload-btn" class="btn btn--icon" title="Upload" aria-haspopup="true"
+          aria-expanded="false">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+        <div id="upload-menu" class="upload-menu hidden" role="menu" aria-label="Upload Menu">
+          <button type="button" data-type="kak" class="upload-menu__item" role="menuitem">
+            <i class="fa-regular fa-file-lines"></i> Upload KAK
+          </button>
+          <button type="button" data-type="product" class="upload-menu__item" role="menuitem">
+            <i class="fa-solid fa-box"></i> Upload Product
           </button>
         </div>
-
-
-        <!-- Hidden file input -->
-        <input type="file" id="file-input" name="files" class="hidden" multiple />
-      </form>
-    </footer>
-
-  </main>
-</div>
-
-
-<!-- Modal Overlay & Form KAK/TOR -->
-<div id="modal-kak" class="modal hidden">
-  <div class="modal__backdrop"></div>
-  <div class="modal__dialog">
-    <header class="modal__header">
-      <h2>Upload KAK/TOR</h2>
-      <button class="modal__close" data-close="modal-kak">&times;</button>
-    </header>
-
-    <!-- Sesuaikan action & method ke Flask proxy endpoint -->
-    <form id="form-kak" class="modal__form" action="/upload-kak-via-flask/" method="post" enctype="multipart/form-data">
-      <div class="form-group">
-        <label for="kak-project">Nama Proyek</label>
-        <input type="text" id="kak-project" name="project_name" placeholder="Contoh: Proyek X" required />
       </div>
 
-      <div class="form-group">
-        <label for="kak-pelanggan">Pelanggan</label>
-        <input type="text" id="kak-pelanggan" name="pelanggan" placeholder="Contoh: PT. Contoh Abadi" required />
-      </div>
+      <!-- Textarea fleksibel -->
+      <textarea id="chat-input" name="message" placeholder="Tanya apa saja…" autocomplete="off" required rows="1"
+        class="chat-textarea" aria-label="Message input"></textarea>
 
-      <div class="form-group">
-        <label for="kak-tahun">Tahun</label>
-        <input type="number" id="kak-tahun" name="tahun" placeholder="2025" min="2000" max="2100" required />
-      </div>
+      <!-- Kirim -->
+      <button type="submit" class="btn btn--send" title="Kirim">
+        <i class="fa-solid fa-paper-plane"></i>
+      </button>
 
-      <div class="form-group">
-        <label for="kak-file">Pilih File (PDF)</label>
-        <input type="file" id="kak-file" name="file" accept=".pdf,.doc,.docx" required />
-      </div>
-
-      <div class="modal__actions">
-        <button type="button" data-close="modal-kak">Batal</button>
-        <button type="submit">Upload</button>
-      </div>
+      <!-- Hidden file input -->
+      <input type="file" id="file-input" name="files" class="hidden" multiple />
     </form>
-  </div>
-</div>
 
+    <!-- Attachment preview (muncul saat ada file) -->
+    <div id="attachment-preview" class="attachment-preview hidden" aria-live="polite"></div>
+  </footer>
+</section>
+{% endblock %}
 
-<!-- Modal Overlay & Form Product -->
-<div id="modal-product" class="modal hidden">
-  <div class="modal__backdrop"></div>
-  <div class="modal__dialog">
-    <header class="modal__header">
-      <h2>Upload Product</h2>
-      <button class="modal__close" data-close="modal-product">&times;</button>
-    </header>
-    <form id="form-product" class="modal__form" enctype="multipart/form-data">
-      <div class="form-group">
-        <label for="product-name">Nama Product</label>
-        <input type="text" id="product-name" name="name" required />
-      </div>
-      <div class="form-group">
-        <label for="product-file">Pilih File (Gambar/Doc)</label>
-        <input type="file" id="product-file" name="file" accept="image/*,.pdf,.doc,.docx" required />
-      </div>
-      <div class="modal__actions">
-        <button type="button" data-close="modal-product">Batal</button>
-        <button type="submit">Upload</button>
-      </div>
-    </form>
-  </div>
-</div>
+{% block scripts %}
+{{ super() }}
 {% endblock %}

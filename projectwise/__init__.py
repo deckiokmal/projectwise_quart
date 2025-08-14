@@ -11,6 +11,7 @@ from .routes.main import main_bp
 from .routes.chat import chat_bp
 from .routes.api import api_bp
 from .routes.mcp_control import mcp_control_bp
+from .routes.ingestion import ingestion_bp
 from .routes.ws_chat import ws_chat_bp
 
 
@@ -49,6 +50,7 @@ async def create_app(config_object: object | None = None) -> Quart:
     app.register_blueprint(ws_chat_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(mcp_control_bp, url_prefix="/mcp")
+    app.register_blueprint(ingestion_bp)
     logger.info("Blueprints registered")
 
     return app

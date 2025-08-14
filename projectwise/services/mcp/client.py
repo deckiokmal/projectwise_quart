@@ -177,7 +177,7 @@ class MCPClient:
         """
         try:
             while True:
-                await asyncio.sleep(120)
+                await asyncio.sleep(300) # sec
                 if not self.session:
                     return
                 await self.call_tool("heartbeat", {})

@@ -1,6 +1,7 @@
 # projectwise/extensions.py
 from __future__ import annotations
 
+import asyncio
 from quart import Quart
 
 from .config import ServiceConfigs
@@ -21,20 +22,28 @@ async def init_extensions(app: Quart) -> None:
     This should be called once when the application starts.  The
     resulting objects are stored on ``app.extensions`` for later use.
     """
-    global mcp_client, service_configs
 
     logger = get_logger(__name__)
 
     # Load service configuration from environment (via pydantic)
-    _service_configs = ServiceConfigs()
-    app.extensions["service_configs"] = _service_configs
-    logger.info(f"ServiceConfigs loaded: MCP URL = {_service_configs.mcp_server_url}")
+    service_configs = ServiceConfigs()
+    
+    # Check LLM API KEY
+    if not service_configs.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY kosong. Set di .env sebelum menjalankan aplikasi.")
+    
+    app.extensions["service_configs"] = service_configs
+    logger.info(f"ServiceConfigs loaded: MCP URL = {service_configs.mcp_server_url}")
 
-    # Create and connect the MCP client.  Use the model defined in the
-    # ServiceConfigs.  ``__aenter__`` returns a connected client.
-    _mcp_client = await MCPClient(model=_service_configs.llm_model).__aenter__()
-    app.extensions["mcp"] = _mcp_client
-    logger.info(f"MCPClient connected to {_service_configs.mcp_server_url}")
+    # Siapkan state MCP (tidak connect di startup)
+    app.extensions["mcp"] = None
+    app.extensions["mcp_lock"] = asyncio.Lock()
+    app.extensions["mcp_status"] = {
+        "connected": False,
+        "connecting": False,
+        "error": None
+    }
+    logger.info("MCP state initialised")
 
     # Initialise short‑term memory using the database URI from the app config
     db_url = app.config["SQLALCHEMY_DATABASE_URI"]
@@ -44,17 +53,17 @@ async def init_extensions(app: Quart) -> None:
     logger.info(f"ShortTermMemory initialised with DB: {db_url}")
 
     # Initialise long‑term memory (vector store)
-    long_term_memory = Mem0Manager(_service_configs)
+    long_term_memory = Mem0Manager(service_configs)
     await long_term_memory.init()
     app.extensions["long_term_memory"] = long_term_memory
     logger.info("LongTermMemory (Mem0Manager) initialised")
 
 
-async def shutdown_extensions() -> None:
+async def shutdown_extensions(app: Quart) -> None:
     """Clean up all asynchronous extensions on application shutdown."""
-    global _mcp_client
+    client = app.extensions["mcp"]
     logger = get_logger(__name__)
-    if _mcp_client:
-        await _mcp_client.__aexit__(None, None, None)
+    if client:
+        await client.__aexit__(None, None, None)
         logger.info("MCPClient disconnected")
-        _mcp_client = None
+        client = None

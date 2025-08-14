@@ -1,119 +1,152 @@
-{#
-Base template for all ProjectWise pages.
-
-This file defines the outer HTML structure, navigation bar and
-provides Jinja blocks for page‑specific content and scripts. It
-also includes a simple connection status indicator and buttons
-allowing users to connect/disconnect from the MCP server.
-#}
+{# Base template - Topbar layout, Dark theme ready #}
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0f17" />
     <title>{% block title %}ProjectWise{% endblock %}</title>
+
+    <!-- Global stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+
     {% block head %}{% endblock %}
 </head>
 
-<body>
-    <div class="app-container">
-        <!-- Sidebar kiri -->
-        <aside class="sidebar">
-            <div class="sidebar__brand">
-                {% block sidebar_brand %}Projectwise{% endblock %}
+<body class="theme-dark">
+    <!-- ===== Topbar (fixed) ===== -->
+    <header class="topbar" role="banner">
+        <div class="topbar__inner">
+            <!-- Brand / Logo -->
+            <div class="topbar__brand">
+                {% block sidebar_brand %}ProjectWise{% endblock %}
             </div>
-            <nav class="sidebar__nav">
-                {% block sidebar_nav %}
-                <ul>
-                    <li class="{% if request.endpoint == 'main.index' %}active{% endif %}">
-                        <a href="{{ url_for('main.index') }}">Home</a>
+
+            <!-- Primary Nav -->
+            <nav class="topbar__nav" aria-label="Primary">
+                <ul class="topbar__menu">
+                    <li class="topbar__item {% if request.endpoint == 'main.index' %}active{% endif %}">
+                        <a class="topbar__link" href="{{ url_for('main.index') }}">Home</a>
                     </li>
-                    <li class="{% if request.endpoint == 'main.ws_room_page' %}active{% endif %}">
-                        <a href="{{ url_for('main.war_rooms') }}">War Rooms</a>
+                    <li class="topbar__item {% if request.endpoint == 'main.war_rooms' %}active{% endif %}">
+                        <a class="topbar__link" href="{{ url_for('main.war_rooms') }}">War Rooms</a>
                     </li>
-                    <li class="{% if request.endpoint == 'main.chat_page' %}active{% endif %}">
-                        <a href="{{ url_for('main.proposal') }}">Proposal Generation</a>
+                    <li class="topbar__item {% if request.endpoint == 'main.proposal' %}active{% endif %}">
+                        <a class="topbar__link" href="{{ url_for('main.proposal') }}">Proposal Generation</a>
                     </li>
-                    <li class="{% if request.endpoint == 'main.analysis' %}active{% endif %}">
-                        <a href="{{ url_for('main.analysis') }}">Budget Analysis</a>
+                    <li class="topbar__item {% if request.endpoint == 'main.analysis' %}active{% endif %}">
+                        <a class="topbar__link" href="{{ url_for('main.analysis') }}">Budget Analysis</a>
                     </li>
                 </ul>
-                {% endblock %}
             </nav>
-            <div class="sidebar__footer">
-                <span class="status" id="conn-status">Disconnected</span>
-                <button id="connect-btn" type="button">Connect</button>
-                <button id="disconnect-btn" type="button" disabled>Disconnect</button>
-            </div>
-            <div class="sidebar__footer">
-                {% block sidebar_footer %}© 2025 ProjectWise{% endblock %}
-            </div>
-        </aside>
 
-        <!-- Konten utama/chat di kanan -->
-        <div class="main">
+            <!-- Actions: MCP status + buttons -->
+            <div class="topbar__actions" aria-live="polite">
+                <div class="mcp-status">
+                    <span id="mcpStatus" class="badge badge--danger">Disconnected</span>
+                </div>
+                <div class="mcp-actions">
+                    <button id="btnConnect" class="btn btn--primary">Connect</button>
+                    <button id="btnDisconnect" class="btn btn--ghost hidden">Disconnect</button>
+                    <button id="btnReconnect" class="btn btn--outline hidden">Reconnect</button>
+                </div>
+
+                <!-- Mobile menu toggler (ikon hamburger) -->
+                <button id="btnTopbarToggle" class="btn btn--icon topbar__toggle" aria-label="Toggle navigation"
+                    aria-expanded="false">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== Page container ===== -->
+    <div class="page">
+        <!-- offset untuk topbar fixed -->
+        <div class="page__offset"></div>
+
+        <!-- Main content -->
+        <main class="main" role="main" aria-label="Content">
             {% block body %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- ===== Modals ===== -->
+    <div id="modal-kak" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-kak-title">
+        <div class="modal__backdrop" data-close="modal-kak"></div>
+        <div class="modal__dialog">
+            <header class="modal__header">
+                <h2 id="modal-kak-title">Upload KAK/TOR</h2>
+                <button class="modal__close" data-close="modal-kak" aria-label="Close">&times;</button>
+            </header>
+
+            <form id="form-kak" class="modal__form" action="/upload-kak/" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="kak-project">Nama Proyek</label>
+                    <input type="text" id="kak-project" name="project_name" placeholder="Contoh: Proyek X" required />
+                </div>
+                <div class="form-group">
+                    <label for="kak-pelanggan">Pelanggan</label>
+                    <input type="text" id="kak-pelanggan" name="pelanggan" placeholder="Contoh: PT. Contoh Abadi"
+                        required />
+                </div>
+                <div class="form-group">
+                    <label for="kak-tahun">Tahun</label>
+                    <input type="number" id="kak-tahun" name="tahun" placeholder="2025" min="2000" max="2100"
+                        required />
+                </div>
+                <div class="form-group">
+                    <label for="kak-file">Pilih File (PDF/DOC)</label>
+                    <input type="file" id="kak-file" name="file" accept=".pdf,.doc,.docx" required />
+                </div>
+                <div class="modal__actions">
+                    <button type="button" class="btn btn--ghost" data-close="modal-kak">Batal</button>
+                    <button type="submit" class="btn btn--primary">Upload</button>
+                </div>
+            </form>
         </div>
     </div>
 
+    <div id="modal-product" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-product-title">
+        <div class="modal__backdrop" data-close="modal-product"></div>
+        <div class="modal__dialog">
+            <header class="modal__header">
+                <h2 id="modal-product-title">Upload Product</h2>
+                <button class="modal__close" data-close="modal-product" aria-label="Close">&times;</button>
+            </header>
+
+            <form id="form-product" class="modal__form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="product-name">Nama Product</label>
+                    <input type="text" id="product-name" name="name" required />
+                </div>
+                <div class="form-group">
+                    <label for="product-file">Pilih File (Gambar/Doc)</label>
+                    <input type="file" id="product-file" name="file" accept="image/*,pdf,doc,docx" required />
+                </div>
+                <div class="modal__actions">
+                    <button type="button" class="btn btn--ghost" data-close="modal-product">Batal</button>
+                    <button type="submit" class="btn btn--primary">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toasts / Notifications -->
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
     {% block scripts %}{% endblock %}
+
+    <!-- Markdown-it (dipakai di main.js) -->
     <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- App scripts -->
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=20250815"></script>
+    <script src="{{ url_for('static', filename='js/mcp_control.js') }}?v=20250815"></script>
 
+    <!-- Font Awesome (ikon) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"></script>
-
-    <script>
-        // Manage MCP connection buttons
-        async function updateConnStatus() {
-            try {
-                const res = await fetch('/mcp/status');
-                const data = await res.json();
-                const statusEl = document.getElementById('conn-status');
-                const connectBtn = document.getElementById('connect-btn');
-                const disconnectBtn = document.getElementById('disconnect-btn');
-                if (data.connected) {
-                    statusEl.textContent = 'Connected';
-                    connectBtn.disabled = true;
-                    disconnectBtn.disabled = false;
-                } else {
-                    statusEl.textContent = 'Disconnected';
-                    connectBtn.disabled = false;
-                    disconnectBtn.disabled = true;
-                }
-            } catch (e) {
-                console.error('Unable to get MCP status:', e);
-            }
-        }
-
-        async function connectMCP() {
-            try {
-                await fetch('/mcp/connect', { method: 'POST' });
-            } catch (e) {
-                console.error('Error connecting:', e);
-            } finally {
-                updateConnStatus();
-            }
-        }
-
-        async function disconnectMCP() {
-            try {
-                await fetch('/mcp/disconnect', { method: 'POST' });
-            } catch (e) {
-                console.error('Error disconnecting:', e);
-            } finally {
-                updateConnStatus();
-            }
-        }
-
-        document.getElementById('connect-btn').addEventListener('click', connectMCP);
-        document.getElementById('disconnect-btn').addEventListener('click', disconnectMCP);
-
-        // Update the connection status when the page loads
-        updateConnStatus();
-    </script>
 </body>
 
 </html>
