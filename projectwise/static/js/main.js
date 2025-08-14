@@ -209,67 +209,111 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    /* ===== KAK + Polling ===== */
+    /* ===== KAK + Polling (REFactor: toast-first, append hanya saat success) ===== */
     async function pollStatus(jobId, statusUrl, interval = 5000) {
-      appendMessage({ role: 'assistant', text: `Memeriksa status job ${jobId}…` });
-      const timer = setInterval(async () => {
+      let stopped = false;
+
+      const levelOf = (s) => {
+        const x = String(s || '').toLowerCase();
+        if (x === 'success') return 'ok';
+        if (x === 'failure' || x === 'error') return 'error';
+        return 'warn'; // queued / running / processing / etc.
+      };
+
+      const tick = async () => {
+        if (stopped) return;
         try {
           const res  = await fetch(statusUrl);
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error || res.statusText);
-          appendMessage({ role: 'assistant', text: `Status: ${data.status}` });
-          if (data.status === 'success' || data.status === 'failure') {
-            clearInterval(timer);
-            appendMessage({
-              role: 'assistant',
-              text: data.status === 'success' ? (data.message || 'Ingestion berhasil.')
-                                              : `Ingestion gagal: ${data.message || '(no message)'}`
-            });
-            if (data.status === 'success' && data.summary) {
+
+          const s = String(data.status || '').toLowerCase();
+          toast(`Job ${jobId}: ${s || 'unknown'}`, levelOf(s), 2500);
+
+          if (s === 'success') {
+            // tampilkan hasil ke chat (assistant)
+            appendMessage({ role: 'assistant', text: data.message || 'Ingestion berhasil.' });
+            if (data.summary) {
               appendMessage({ role: 'assistant', text: String(data.summary) });
             }
+            stopped = true;
+            return;
+          }
+          if (s === 'failure' || s === 'error') {
+            // gagal → cukup toast, tanpa append ke chat
+            stopped = true;
+            return;
           }
         } catch (err) {
-          clearInterval(timer);
-          appendMessage({ role: 'assistant', text: `Error checking status: ${err?.message || err}` });
+          toast(`Job ${jobId}: ${err?.message || err}`, 'error', 4000);
+          stopped = true;
+          return;
         }
-      }, interval);
+        // lanjut polling
+        setTimeout(tick, interval);
+      };
+
+      // kick-off
+      toast(`Job ${jobId}: memeriksa status…`, 'warn', 2000);
+      tick();
     }
 
     el.formKak && el.formKak.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(el.formKak);
       el.modalKak?.classList.add('hidden');
-      appendMessage({ role: 'assistant', text: 'Upload KAK/TOR diterima, menunggu job_id…' });
+
+      // awalnya via toast, bukan chat bubble
+      toast('Upload KAK/TOR diterima, menunggu job_id…', 'warn', 3000);
+
       try {
         const res  = await fetch('/upload-kak/', { method: 'POST', body: formData });
         const ct = res.headers.get('content-type') || '';
         if (!ct.includes('application/json')) { const t = await res.text(); throw new Error(`Expected JSON, got:\n${t}`); }
         const data = await res.json();
         if (res.status === 202) {
-          appendMessage({ role: 'assistant', text: data.message || 'Job diterima.' });
-          if (data.job_id && data.status_url) pollStatus(data.job_id, data.status_url);
+          if (data.message) toast(data.message, 'ok', 2500);
+          if (data.job_id && data.status_url) {
+            // polling akan menampilkan toast status & appendMessage saat success
+            pollStatus(data.job_id, data.status_url);
+          } else {
+            toast('Tidak ada job_id/status_url pada respons.', 'error', 4000);
+          }
         } else {
           throw new Error(data?.error || res.statusText);
         }
       } catch (err) {
-        appendMessage({ role: 'assistant', text: 'Upload KAK gagal: ' + (err?.message || err) });
+        toast('Upload KAK gagal: ' + (err?.message || err), 'error', 5000);
       } finally {
         el.formKak.reset();
       }
     });
 
-    /* ===== Product ===== */
+    /* ===== Product (REFactor: toast untuk progres; append hanya saat success) ===== */
     el.formProduct && el.formProduct.addEventListener('submit', async (e) => {
       e.preventDefault();
       const data = new FormData(el.formProduct);
-      appendMessage({ role: 'assistant', text: 'Uploading Product…' });
+
+      // progres via toast
+      toast('Uploading Product…', 'warn', 2500);
+
       try {
         const res  = await fetch('/upload-product', { method: 'POST', body: data });
         const json = await res.json().catch(() => ({}));
-        appendMessage({ role: 'assistant', text: res.ok ? 'Product berhasil diupload.' : `Error: ${json?.error || res.statusText}` });
+
+        // gunakan "status" dari server bila ada; jika tidak, derive dari HTTP ok
+        const status = String(json?.status || (res.ok ? 'success' : 'failure')).toLowerCase();
+
+        if (status === 'success') {
+          appendMessage({ role: 'assistant', text: json?.message || 'Product berhasil diupload.' });
+          if (json?.summary) appendMessage({ role: 'assistant', text: String(json.summary) });
+          toast('Upload product: success', 'ok', 2000);
+        } else {
+          const errMsg = json?.error || json?.message || res.statusText || 'Unknown error';
+          toast(`Upload product gagal: ${errMsg}`, 'error', 4500);
+        }
       } catch (err) {
-        appendMessage({ role: 'assistant', text: 'Upload Product gagal: ' + (err?.message || err) });
+        toast('Upload Product gagal: ' + (err?.message || err), 'error', 4500);
       } finally {
         el.formProduct.reset();
         el.modalProduct?.classList.add('hidden');
@@ -384,4 +428,21 @@ document.addEventListener('DOMContentLoaded', () => {
       autoGrow(el.chatInput); el.chatInput.focus();
     }));
   })();
+
+  document.addEventListener('DOMContentLoaded', () => {
+  const footer = document.querySelector('.chat__input');
+  const root   = document.documentElement;
+  if (!footer) return;
+
+  const applyHeight = () => {
+    const h = Math.ceil(footer.getBoundingClientRect().height);
+    root.style.setProperty('--input-h', h + 'px');
+  };
+
+  const ro = new ResizeObserver(applyHeight);
+  ro.observe(footer);
+
+  applyHeight();
+  window.addEventListener('resize', applyHeight);
+});
 });

@@ -40,6 +40,8 @@
     --success: #22c55e;
     --warning: #f59e0b;
     --danger: #f97373;
+
+    --input-h: 92px;
 }
 
 @media (max-width: 768px) {
@@ -63,6 +65,9 @@ body {
 }
 
 body.theme-dark {
+    background-size: auto;
+    background-position: center;
+    background-repeat: no-repeat;
     background: radial-gradient(1200px 600px at 10% -10%, rgba(72, 95, 199, .12), transparent 60%),
         radial-gradient(1000px 500px at 90% 10%, rgba(167, 139, 250, .10), transparent 60%),
         var(--bg);
@@ -162,7 +167,7 @@ body.theme-dark {
     list-style: none;
 }
 
-.topbar__item {}
+/* .topbar__item {} */
 
 .topbar__link {
     display: inline-flex;
@@ -335,7 +340,7 @@ body.theme-dark {
 .main {
     max-width: 1000px;
     margin: 0 auto;
-    padding: var(--space-6) var(--space-4) var(--space-6);
+    padding: var(--space-2) var(--space-4) var(--space-2);
 }
 
 /* -----------------------------
@@ -346,6 +351,7 @@ body.theme-dark {
     flex-direction: column;
     gap: var(--space-3);
     min-height: calc(100dvh - var(--topbar-h) - var(--space-6));
+    overflow: hidden;
 }
 
 .chat__header {
@@ -400,6 +406,9 @@ body.theme-dark {
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-1);
+    padding-bottom: calc(var(--input-h) + var(--space-4));
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable both-edges;
 }
 
 /* Empty state */
@@ -566,9 +575,6 @@ body.theme-dark {
 /* -----------------------------
    5) INPUT BAR (HORIZONTAL)
 ------------------------------*/
-.main__input {
-    /* container footer area */
-}
 
 .input-bar {
     display: flex;
