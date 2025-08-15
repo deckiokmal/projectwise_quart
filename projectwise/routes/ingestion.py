@@ -1,17 +1,27 @@
-# chats/controllers/ingestion_pipeline.py
-
+# projectwise/routes/ingestion.py
 from __future__ import annotations
 
 import httpx
-from quart import Blueprint, current_app, request, jsonify
+from urllib.parse import urljoin
+from projectwise.config import ServiceConfigs
+
 from projectwise.utils.logger import get_logger
+from quart import Blueprint, current_app, request, jsonify
 
-ingestion_bp = Blueprint("ingestion", __name__)
+
 logger = get_logger(__name__)
+ingestion_bp = Blueprint("ingestion", __name__)
 
-# Endpoint MCP (ubah sesuai environment Anda)
-MCP_UPLOAD_URL = "http://127.0.0.1:5000/api/upload-kak-tor/"
-CHECK_STATUS_URL = "http://127.0.0.1:5000/api/check-status/?job_id="
+
+# di module scope, tapi lewat app context saat pertama dipakai:
+def _endpoints():
+    cfg: ServiceConfigs = current_app.extensions["service_configs"]
+    base = cfg.mcp_server_url.rstrip("/") + "/"
+    return {
+        "upload": urljoin(base, "api/upload-kak-tor/"),
+        "check": urljoin(base, "api/check-status/?job_id="),
+    }
+
 
 # Timeout total (detik) untuk koneksi ke MCP
 HTTP_TIMEOUT = httpx.Timeout(360.0)   # connect+read+write+pool total
@@ -29,6 +39,7 @@ async def upload_kak():
 
     Lalu forward ke MCP (async, httpx) dan kembalikan job_id untuk dipolling.
     """
+    eps = _endpoints()
     # === 1) Ambil form & file dari request (Quart) ===
     form = await request.form
     files_in = await request.files
@@ -56,8 +67,9 @@ async def upload_kak():
     # === 2) Kirim ke MCP (async) ===
     try:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, limits=HTTP_LIMITS) as client:
-            resp = await client.post(MCP_UPLOAD_URL, data=data, files=files)
+            resp = await client.post(eps["upload"], data=data, files=files)
             resp.raise_for_status()
+            
     except httpx.HTTPError as e:
         current_app.logger.exception("Gagal mengirim ke MCP")
         return jsonify({"error": f"Gagal mengirim ke MCP: {e}"}), 502
@@ -87,7 +99,9 @@ async def proxy_check_status(job_id: str):
     """
     Proxy GET → MCP /check-status, lalu sederhanakan payload untuk frontend.
     """
-    url = f"{CHECK_STATUS_URL}{job_id}"
+    eps = _endpoints()
+    url = f"{eps['check']}{job_id}"
+    
     try:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, limits=HTTP_LIMITS) as client:
             resp = await client.get(url)

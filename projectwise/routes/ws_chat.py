@@ -1,90 +1,78 @@
-"""
-WebSocket chat room with long‑term and short‑term memory integration.
-
-This blueprint exposes a WebSocket endpoint ``/ws/chat/<room_id>/<user_id>``
-that supports multi‑room chat with streaming responses.  For each
-incoming message the chat service retrieves relevant memories, calls
-the MCP LLM via streaming API and broadcasts deltas and final
-responses to all participants in the room.
-"""
-
+# projectwise/routes/ws_chat.py
 from __future__ import annotations
 
 import json
+from typing import Any
 from quart import Blueprint, websocket, current_app
 
+from projectwise.utils.logger import get_logger
 from ..services.workflow.chat_with_memory import ChatWithMemory
 
 
+logger = get_logger(__name__)
 ws_chat_bp = Blueprint("ws_chat", __name__)
 
-# Track active WebSocket connections per room
-active_rooms: dict[str, dict[str, any]] = {} # type: ignore
+
+active_rooms: dict[str, dict[str, Any]] = {}  # user_id -> ws
 
 
 def _get_chat_service() -> ChatWithMemory:
-    """Return (and lazily initialise) the ChatWithMemory service."""
+    """
+    Ambil instance ChatWithMemory yang konsisten dengan app.extensions.
+    Tidak ada .init() khusus; gunakan factory from_quart_app().
+    """
     if "chat_ai" not in current_app.extensions:
-        service_configs = current_app.extensions["service_configs"]
-        db_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
-        chat_ai = ChatWithMemory(service_configs, db_url)
-        current_app.extensions["chat_ai_init"] = current_app.loop.create_task( # type: ignore
-            chat_ai.init()
-        )
-        current_app.extensions["chat_ai"] = chat_ai
+        current_app.extensions["chat_ai"] = ChatWithMemory.from_quart_app(current_app)
     return current_app.extensions["chat_ai"]
 
 
 @ws_chat_bp.websocket("/ws/chat/<room_id>/<user_id>")
 async def chat_ws_room(room_id: str, user_id: str) -> None:
-    """Handle WebSocket chat for the given room and user."""
-    room_id = str(room_id)
-    user_id = str(user_id)
-
-    # Register connection
+    room_id = str(room_id); user_id = str(user_id)
     active_rooms.setdefault(room_id, {})
     active_rooms[room_id][user_id] = websocket
-    print(f"[Room {room_id}] User {user_id} connected")
+    logger.info("[ws] connected | room=%s user=%s", room_id, user_id)
     try:
-        # Ensure chat service initialised
         chat_ai = _get_chat_service()
-        init_task = current_app.extensions.get("chat_ai_init")
-        if init_task:
-            await init_task
-            current_app.extensions["chat_ai_init"] = None
         while True:
             data_raw = await websocket.receive()
-            data = json.loads(data_raw)
-            user_message = data.get("message", "").strip()
+            data = json.loads(data_raw or "{}")
+            user_message = (data.get("message") or "").strip()
             if not user_message:
                 await websocket.send(json.dumps({"error": "Pesan kosong"}))
                 continue
-            # Retrieve memories & call LLM via chat_ai.chat
-            assistant_reply = await chat_ai.chat(
-                user_id=f"{room_id}:{user_id}", user_message=user_message
-            )
-            # Broadcast the full assistant reply to all participants
+
+            reply = await chat_ai.chat(user_id=f"{room_id}:{user_id}", user_message=user_message)
             await _broadcast(room_id, {
                 "type": "completed",
                 "from": "assistant",
-                "content": assistant_reply,
+                "content": reply,
             })
     except Exception as e:
-        print(f"[Room {room_id}] Error for user {user_id}: {e}")
+        logger.exception("[ws] error | room=%s user=%s", room_id, user_id)
+        try:
+            await websocket.send(json.dumps({
+                "error": "Koneksi WS bermasalah",
+                "detail": str(e)[:160]  # ringkas, human-readable
+            }))
+        except Exception:
+            pass
     finally:
-        if room_id in active_rooms and user_id in active_rooms[room_id]:
+        try:
             del active_rooms[room_id][user_id]
-        print(f"[Room {room_id}] User {user_id} disconnected")
+            if not active_rooms[room_id]:
+                active_rooms.pop(room_id, None)
+        except Exception:
+            pass
+        logger.info("[ws] disconnected | room=%s user=%s", room_id, user_id)
 
 
 async def _broadcast(room_id: str, message: dict) -> None:
-    """Send a message to all users in the specified room."""
     if room_id not in active_rooms:
         return
-    message_json = json.dumps(message)
+    payload = json.dumps(message)
     for uid, ws in list(active_rooms[room_id].items()):
         try:
-            await ws.send(message_json)
+            await ws.send(payload)
         except Exception:
-            # Remove broken connection
             del active_rooms[room_id][uid]

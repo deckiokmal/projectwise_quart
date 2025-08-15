@@ -1,18 +1,18 @@
+# projectwise/routes/mcp_control.py
 from __future__ import annotations
 
 import asyncio
 from quart import Blueprint, current_app, jsonify
 
-from ..services.mcp.client import MCPClient
 from ..utils.logger import get_logger
+from ..services.mcp.client import MCPClient
+
+
+logger = get_logger(__name__)
+mcp_control_bp = Blueprint("mcp_control", __name__)
 
 
 CONNECT_TIMEOUT_SECS = 7
-
-
-mcp_control_bp = Blueprint("mcp_control", __name__)
-logger = get_logger(__name__)
-
 
 @mcp_control_bp.post("/connect")
 async def connect():
@@ -47,7 +47,8 @@ async def connect():
                 }
             )
             logger.exception("MCP connect timeout")
-            return jsonify({"error": status["error"]}), 504
+            return jsonify({"error": status["error"]}), 504, {"Retry-After": "5"}
+        
         except Exception as e:
             status.update({"connected": False, "error": str(e)})
             logger.exception("MCP connect failed")

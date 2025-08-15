@@ -1,4 +1,6 @@
 # main.py
+from __future__ import annotations
+
 import asyncio
 from hypercorn.asyncio import serve
 from hypercorn.config import Config as HyperConfig

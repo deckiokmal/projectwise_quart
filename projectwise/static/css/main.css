@@ -575,6 +575,14 @@ body.theme-dark {
 /* -----------------------------
    5) INPUT BAR (HORIZONTAL)
 ------------------------------*/
+.chat__input {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 1001;
+    width: min(970px, calc(100vw - 2 * var(--space-4)));
+}
 
 .input-bar {
     display: flex;
@@ -648,7 +656,7 @@ body.theme-dark {
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     color: var(--text);
-    background: rgba(255, 255, 255, .03);
+    background: rgba(255, 255, 255, 0.438);
     box-shadow: var(--shadow-inset);
 }
 

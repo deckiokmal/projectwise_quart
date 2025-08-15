@@ -1,11 +1,13 @@
 # projectwise/services/memory/long_term_memory.py
 from __future__ import annotations
 
-from typing import List, Dict, Any, Optional
 import asyncio
-
 from mem0 import AsyncMemory
+from typing import List, Dict, Any, Optional
+
 from projectwise.utils.logger import get_logger
+from projectwise.services.workflow.prompt_instruction import DEFAULT_SYSTEM_PROMPT
+
 
 logger = get_logger(__name__)
 
@@ -105,7 +107,8 @@ class Mem0Manager:
         memories_block = "\n".join(f"- {m}" for m in memories) or "[Tidak ada]"
 
         system_prompt = (
-            "Anda adalah ProjectWise, asisten AI presales & PM.\n"
+            DEFAULT_SYSTEM_PROMPT +
+            "\nAnda adalah ProjectWise, asisten AI presales & PM.\n"
             f"Memori relevan:\n{memories_block}"
         )
 

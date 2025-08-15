@@ -1,4 +1,4 @@
-# projectwise/config.
+# projectwise/config.py
 from __future__ import annotations
 
 import os
@@ -28,6 +28,7 @@ class ServiceConfigs(BaseSettings):
     qdrant_port: int = 6333
     log_retention: int = 90
     app_env: str = "development"
+    intent_classification_threshold: float = 0.60
 
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8")
 

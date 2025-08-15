@@ -3,7 +3,7 @@
    - Menandai MCP aktif: window.__PW_HAS_MCP__ = true  → main.js skip fallback
    - UI getter (selalu ambil window.UI terbaru, hindari race)
    - Listen: ui:mcp-connect-click / ui:mcp-disconnect-click / ui:mcp-reconnect-click / ui:submit
-   - Chat ke backend: POST /chat/message (JSON key: "response" secara default)
+   - Chat ke backend: POST /chat/message (JSON key: "reply" secara default)
    - Mode respons: "json" | "chunk" | "sse"
    ========================================================================== */
 
@@ -15,7 +15,7 @@ const CHAT = {
   endpoint: "/chat/message",
   method: "POST",
   mode: "json",        // "json" | "chunk" | "sse"
-  jsonKey: "response", // kunci field jawaban di JSON
+  jsonKey: "reply", // kunci field jawaban di JSON
   headers: {
     // contoh: "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.content || ''
   },

@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
       enabled: true,                     // true = fallback jika MCP down
       endpoint: '/chat/message',
       method: 'POST',
-      jsonKey: 'response',               // key jawaban dari backend lama
+      jsonKey: 'reply',               // key jawaban dari backend lama
       headers: { 'Content-Type': 'application/json' },
     };
 

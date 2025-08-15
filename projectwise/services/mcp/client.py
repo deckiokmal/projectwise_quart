@@ -17,8 +17,8 @@ from mcp.client.streamable_http import streamablehttp_client
 from jsonschema import validate, ValidationError
 
 load_dotenv()
+logger = get_logger(__name__)
 settings = ServiceConfigs()
-logger = get_logger("MCPClient")
 
 
 class MCPClient:

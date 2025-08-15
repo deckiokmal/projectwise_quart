@@ -1,17 +1,11 @@
-"""
-Main blueprint for basic UI endpoints.
-
-This blueprint provides minimal HTML responses for the home page.  In a
-real deployment you might serve templates or static assets here.  For
-this refactored version we keep it simple and return a JSON message
-indicating that the API is available.
-"""
-
+# projectwise/routes/main.py
 from __future__ import annotations
 
+from projectwise.utils.logger import get_logger
 from quart import Blueprint, render_template
 
 
+logger = get_logger(__name__)
 main_bp = Blueprint("main", __name__)
 
 

@@ -1,23 +1,16 @@
-"""
-API blueprint exposing analysis and calculation endpoints.
-
-This blueprint provides REST‑style endpoints for the various analysis
-tools implemented in :mod:`projectwise.services.analysis`.  Each
-endpoint accepts JSON input, invokes the corresponding async
-function and returns a JSON response.  The blueprint is mounted
-under the ``/api`` prefix in the application factory.
-"""
-
+# projectwise/routes/api.py
 from __future__ import annotations
 
 from quart import Blueprint, request, jsonify
 
+from projectwise.utils.logger import get_logger
 from ..services.analysis.competitor_analysis import competitor_analysis
 from ..services.analysis.price_analysis import price_analysis
 from ..services.analysis.project_risk_analysis import project_risk_analysis
 from ..services.analysis.product_calculator import product_calculator
 
 
+logger = get_logger(__name__)
 api_bp = Blueprint("api", __name__)
 
 

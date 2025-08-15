@@ -11,8 +11,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from projectwise.utils.logger import get_logger
 from projectwise.utils.helper import truncate_by_tokens
 
-Base = declarative_base()
+
 logger = get_logger(__name__)
+Base = declarative_base()
 
 
 class ChatSession(Base):

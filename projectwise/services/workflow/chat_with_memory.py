@@ -1,76 +1,161 @@
+# projectwise/services/workflow/chat_with_memory.py
 from __future__ import annotations
 
-import asyncio
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from openai import AsyncOpenAI
 
+from projectwise.utils.logger import get_logger
 from projectwise.services.memory.long_term_memory import Mem0Manager
 from projectwise.services.memory.short_term_memory import ShortTermMemory
+from projectwise.config import ServiceConfigs
+from projectwise.services.workflow.prompt_instruction import PROMPT_WAR_ROOM
+
+
+logger = get_logger(__name__)
 
 
 class ChatWithMemory:
-    """High‑level chat service combining long‑term and short‑term memory."""
+    """
+    War Room chat helper: menggabungkan Long‑Term Memory (mem0) + Short‑Term Memory (SQLite)
+    dengan pemanggilan LLM yang konsisten dengan stack ProjectWise.
+
+    Gunakan `from_quart_app(app, ...)` agar dependensi diambil dari `app.extensions`.
+    """
 
     def __init__(
         self,
-        service_configs,
-        stm_db_url: str | None = None,
+        *,
+        service_configs: ServiceConfigs,
+        long_term: Mem0Manager,
+        short_term: ShortTermMemory,
+        llm: Optional[AsyncOpenAI] = None,
         llm_model: Optional[str] = None,
         max_history: int = 20,
-        *,
-        long_term: Mem0Manager | None = None,
-        short_term: ShortTermMemory | None = None,
     ) -> None:
-        # Pakai instance injeksi jika ada, kalau tidak buat baru (backward-compatible)
-        self.long_term = long_term or Mem0Manager(service_configs)
-        if short_term is not None:
-            self.short_term = short_term
-        else:
-            if not stm_db_url:
-                raise ValueError("stm_db_url wajib jika short_term tidak diinjeksikan.")
-            self.short_term = ShortTermMemory(stm_db_url, max_history=max_history)
+        # Dependensi wajib (diinjeksikan)
+        self.service_configs = service_configs
+        self.long_term = long_term
+        self.short_term = short_term
 
-        self.client = AsyncOpenAI()
+        # LLM
+        self.llm = llm or AsyncOpenAI()
         self.llm_model = llm_model or service_configs.llm_model
+        self.max_history = max_history
 
+        logger.info(
+            "ChatWithMemory initialized | model=%s | max_history=%d",
+            self.llm_model, self.max_history
+        )
 
-    async def chat(self, user_id: str, user_message: str) -> str:
-        """Send a message to the AI assistant and return its reply."""
-        # Retrieve chat history for context
-        stm_history = await self.short_term.get_history(user_id)
-        stm_block = stm_history or "[Tidak ada riwayat percakapan]"
-        
-        # Retrieve relevant long‑term memories
+    # ---------- Factory agar konsisten dengan extensions ----------
+    @classmethod
+    def from_quart_app(
+        cls,
+        app,
+        *,
+        llm: Optional[AsyncOpenAI] = None,
+        llm_model: Optional[str] = None,
+        max_history: int = 20,
+    ) -> "ChatWithMemory":
+        service_configs: ServiceConfigs = app.extensions["service_configs"]        # type: ignore
+        long_term: Mem0Manager = app.extensions["long_term_memory"]               # type: ignore
+        short_term: ShortTermMemory = app.extensions["short_term_memory"]         # type: ignore
+
+        # Pastikan LTM siap (idempotent)
+        # Mem0Manager.init() sudah dipanggil saat init_extensions, tapi aman jika dipanggil lagi
+        # tanpa await di sini untuk menghindari blocking tak perlu.
+
+        return cls(
+            service_configs=service_configs,
+            long_term=long_term,
+            short_term=short_term,
+            llm=llm,
+            llm_model=llm_model or service_configs.llm_model,
+            max_history=max_history,
+        )
+
+    # ---------- Util internal ----------
+    @staticmethod
+    def _shape(role: str, content: str) -> Dict[str, Any]:
+        return {"role": role, "content": content}
+
+    async def _build_context_blocks(self, user_id: str, user_message: str) -> Dict[str, str]:
+        # STM
+        stm_block = await self.short_term.get_history(user_id, limit=self.max_history)
+        stm_block = stm_block or "[Tidak ada riwayat percakapan]"
+
+        # LTM (relevansi terhadap user_message)
         ltm_results = await self.long_term.get_memories(user_message, user_id=user_id)
-        ltm_block = (
-            "\n".join(f"- {m}" for m in ltm_results) or "[Tidak ada memori relevan]"
-        )
-        
-        # Build system prompt
+        ltm_block = "\n".join(f"- {m}" for m in ltm_results) if ltm_results else "[Tidak ada memori relevan]"
+
+        return {"stm_block": stm_block, "ltm_block": ltm_block}
+
+    # ---------- API utama ----------
+    async def chat(
+        self,
+        *,
+        user_id: str,
+        user_message: str,
+        assistant_message: Optional[str] = None,
+    ) -> str:
+        """
+        Kirim pesan ke LLM dalam mode War Room:
+        - Menyuntik blok STM/LTM ke system prompt (briefing).
+        - Opsional menyertakan `assistant_message` (mis. output tool) bila ada.
+        - Menyimpan percakapan ke STM & LTM.
+
+        Return:
+            string balasan dari LLM
+        """
+        logger.info("[war_room] chat start | user=%s | msg.len=%d", user_id, len(user_message or ""))
+
+        ctx = await self._build_context_blocks(user_id, user_message)
         system_prompt = (
-            "Anda adalah ProjectWise, asisten AI presales & PM.\n"
-            "Gunakan informasi berikut untuk menjawab dengan akurat.\n\n"
-            f"### Long Term Memory:\n{ltm_block}\n\n"
-            f"### Short Term Memory:\n{stm_block}"
+            PROMPT_WAR_ROOM()
+            + "\n\n### Briefing Memori\n"
+            + f"**Long‑Term Memory (relevan):**\n{ctx['ltm_block']}\n\n"
+            + f"**Short‑Term History (ringkas):**\n{ctx['stm_block']}\n"
         )
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
+
+        messages: List[Dict[str, Any]] = [
+            self._shape("system", system_prompt),
+            self._shape("user", user_message),
         ]
-        
-        # Call the language model
-        response = await self.client.responses.create(
-            model=self.llm_model,
-            input=messages,  # type: ignore
-        )
-        assistant_reply = response.output_text or "[Tidak ada respon]"
-        
-        # Persist to short‑term memory
-        await self.short_term.save(user_id, "user", user_message)
-        await self.short_term.save(user_id, "assistant", assistant_reply)
-        # Persist to long‑term memory
-        await self.long_term.add_conversation(
-            messages + [{"role": "assistant", "content": assistant_reply}],
-            user_id=user_id,
-        )
+        if assistant_message:  # hanya jika disuplai
+            messages.append(self._shape("assistant", f"Tool output: {assistant_message}"))
+
+        # Panggil LLM (Responses API)
+        try:
+            resp = await self.llm.responses.create(
+                model=self.llm_model,
+                input=messages,  # type: ignore
+                temperature=self.service_configs.llm_temperature,
+            )
+            assistant_reply = (resp.output_text or "").strip() or "[Tidak ada respon]"
+        except Exception as e:
+            logger.exception("[war_room] LLM error")
+            assistant_reply = f"Maaf, terjadi kesalahan saat memproses jawaban: {e}"
+
+        # Persist memori (best-effort; jangan memblokir error ke user)
+        try:
+            await self.short_term.save(user_id, "user", user_message)
+            await self.short_term.save(user_id, "assistant", assistant_reply)
+        except Exception:
+            logger.exception("[war_room] gagal simpan ke ShortTermMemory")
+
+        try:
+            convo = messages + [self._shape("assistant", assistant_reply)]
+            await self.long_term.add_conversation(convo, user_id=user_id)
+        except Exception:
+            logger.exception("[war_room] gagal simpan ke LongTermMemory")
+
+        logger.info("[war_room] chat done | reply.len=%d", len(assistant_reply))
         return assistant_reply
+
+
+# ---- Contoh pemakaian (opsional) ----
+"""
+# Dari dalam handler Quart:
+war = ChatWithMemory.from_quart_app(current_app)
+reply = await war.chat(user_id="u-123", user_message="Status risiko jaringan site A?")
+"""
