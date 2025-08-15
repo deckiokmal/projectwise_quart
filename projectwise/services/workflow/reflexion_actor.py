@@ -33,7 +33,7 @@ class MCPToolAdapter:
 
     Catatan:
     - Tidak membuat MCPClient baru.
-    - Menghormati mcp_lock & mcp_status di extensions.py.
+    - mcp_status di extensions.py.
     - Menyediakan get_tools() agar ReflectionActor tidak bergantung pada detail internal.
     """
 

@@ -40,19 +40,22 @@ async def connect():
             status.update({"connected": True})
             return jsonify({"status": "connected"})
         except asyncio.TimeoutError:
-            status.update(
-                {
-                    "connected": False,
-                    "error": f"Connect timeout {CONNECT_TIMEOUT_SECS}s",
-                }
-            )
+            status.update({"connected": False, "error": f"Connect timeout {CONNECT_TIMEOUT_SECS}s"})
             logger.exception("MCP connect timeout")
-            return jsonify({"error": status["error"]}), 504, {"Retry-After": "5"}
-        
+            return jsonify({
+                "error": status["error"],
+                "code": "TIMEOUT",
+                "hint": "Periksa MCP Server & jaringan. Coba lagi sebentar."
+            }), 504, {"Retry-After": "5"}
+
         except Exception as e:
             status.update({"connected": False, "error": str(e)})
             logger.exception("MCP connect failed")
-            return jsonify({"error": str(e)}), 500
+            return jsonify({
+                "error": str(e),
+                "code": "CONNECT_FAILED",
+                "hint": "Cek URL MCP, kredensial, atau log server MCP."
+            }), 500
         finally:
             # ANTI-STUCK: apapun hasilnya, pastikan connecting=False
             status.update({"connecting": False})

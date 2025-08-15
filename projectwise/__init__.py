@@ -6,7 +6,7 @@ from quart import Quart
 
 from .config import get_config
 from .utils.logger import get_logger
-from .extensions import init_extensions
+from .extensions import init_extensions, shutdown_extensions
 from .routes.main import main_bp
 from .routes.chat import chat_bp
 from .routes.api import api_bp
@@ -43,6 +43,11 @@ async def create_app(config_object: object | None = None) -> Quart:
     # Inisialisasi semua extension async (MCP, DB, dll)
     await init_extensions(app)
     logger.info("Extensions initialized successfully")
+    
+    @app.after_serving
+    async def _cleanup():
+        await shutdown_extensions(app)  # <— pastikan MCP & resource lain rapi
+        logger.info("Extensions shutdown successfully")
 
     # Register blueprints
     app.register_blueprint(main_bp)

@@ -168,7 +168,7 @@ class MCPClient:
         """
         Loop heartbeat untuk menjaga koneksi tetap hidup:
 
-        1. Dalam loop tak berhingga, tunggu 30 detik.
+        1. Dalam loop tak berhingga, tunggu 300 detik.
         2. Jika session hilang (None), keluar dari loop.
         3. Panggil tool "heartbeat" untuk cek kesehatan koneksi.
         4. Tangani CancelledError untuk menghentikan loop dengan tenang.
@@ -177,7 +177,7 @@ class MCPClient:
         """
         try:
             while True:
-                await asyncio.sleep(300) # sec
+                await asyncio.sleep(300) # sec (5 menit)
                 if not self.session:
                     return
                 await self.call_tool("heartbeat", {})
