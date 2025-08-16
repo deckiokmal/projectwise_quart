@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import httpx
 from urllib.parse import urljoin
-from projectwise.config import ServiceConfigs
+# from projectwise.config import ServiceConfigs
 
 from projectwise.utils.logger import get_logger
 from quart import Blueprint, current_app, request, jsonify
@@ -15,8 +15,8 @@ ingestion_bp = Blueprint("ingestion", __name__)
 
 # di module scope, tapi lewat app context saat pertama dipakai:
 def _endpoints():
-    cfg: ServiceConfigs = current_app.extensions["service_configs"]
-    base = cfg.mcp_server_url.rstrip("/") + "/"
+    # cfg: ServiceConfigs = current_app.extensions["service_configs"]
+    base = "http://localhost:5000/"
     return {
         "upload": urljoin(base, "api/upload-kak-tor/"),
         "check": urljoin(base, "api/check-status/?job_id="),

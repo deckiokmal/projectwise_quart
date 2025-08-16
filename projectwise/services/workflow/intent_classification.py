@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
 from pydantic import BaseModel, Field, ValidationError
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIConnectionError
 
 from projectwise.utils.logger import get_logger
 from projectwise.utils.llm_io import short_str
@@ -36,6 +36,7 @@ class IntentClassification(BaseModel):
     - Tambah 'reasoning' untuk observabilitas (audit/tracing).
     - Gunakan nama field 'confidence' (seragam di codebase).
     """
+
     intent: IntentLabel
     confidence: float = Field(ge=0, le=1)
     reasoning: Optional[str] = None
@@ -44,6 +45,7 @@ class IntentClassification(BaseModel):
 # =================
 # 2) Utilities
 # =================
+
 
 def _build_messages(user_query: str) -> List[Dict[str, Any]]:
     """
@@ -60,6 +62,7 @@ def _build_messages(user_query: str) -> List[Dict[str, Any]]:
 # =================
 # 3) Core: Klasifikasi via OpenAI Responses API
 # =================
+
 
 async def classify_intent_responses(
     llm: AsyncOpenAI,
@@ -87,15 +90,25 @@ async def classify_intent_responses(
         )
         parsed = getattr(resp, "output_parsed", None)
         if isinstance(parsed, IntentClassification):
-            logger.info("[intent] parsed via responses.parse | %s %.2f", parsed.intent, parsed.confidence)
+            logger.info(
+                "[intent] parsed via responses.parse | %s %.2f",
+                parsed.intent,
+                parsed.confidence,
+            )
             return parsed
+    except APIConnectionError:
+        logger.error("LLM APIConnectionError.")
+        human = "LLM API Connection Error. Silakan coba lagi."
+        raise RuntimeError(human)
     except Exception:
         logger.exception("[intent] responses.parse failed, fallback to create")
 
     # Fallback create → parse manual
     try:
         resp = await asyncio.wait_for(
-            llm.responses.create(model=model, input=messages, temperature=temperature, top_p=top_p), # type: ignore
+            llm.responses.create(
+                model=model, input=messages, temperature=temperature, top_p=top_p # type: ignore
+            ),
             timeout=timeout_sec,
         )
         # Try output_text → pydantic
@@ -105,11 +118,16 @@ async def classify_intent_responses(
                 return IntentClassification.model_validate_json(raw)
             except ValidationError:
                 logger.warning("[intent] manual-parse failed: %s", short_str(raw))
+    except APIConnectionError:
+        logger.error("LLM APIConnectionError.")
+        human = "LLM API Connection Error. Silakan coba lagi."
+        raise RuntimeError(human)
     except Exception:
         logger.exception("[intent] responses.create failed")
 
     logger.warning("[intent] fallback → other (0.00)")
     return IntentClassification(intent="other", confidence=0.0)
+
 
 # ——— Router dengan 5 intent
 OnAny = Callable[[str, IntentClassification], Awaitable[Any]]
@@ -117,6 +135,7 @@ OnAny = Callable[[str, IntentClassification], Awaitable[Any]]
 # =================
 # 4) Controller: Best-Practice Routing dengan Threshold
 # =================
+
 
 async def route_based_on_intent(
     llm: AsyncOpenAI,
@@ -134,9 +153,19 @@ async def route_based_on_intent(
     timeout_sec: float = 45.0,
 ) -> Tuple[Any, IntentClassification]:
     cls = await classify_intent_responses(
-        llm, query, model=model, temperature=temperature, top_p=top_p, timeout_sec=timeout_sec
+        llm,
+        query,
+        model=model,
+        temperature=temperature,
+        top_p=top_p,
+        timeout_sec=timeout_sec,
     )
-    logger.info("[intent] decision | %s %.2f thr=%.2f", cls.intent, cls.confidence, confidence_threshold)
+    logger.info(
+        "[intent] decision | %s %.2f thr=%.2f",
+        cls.intent,
+        cls.confidence,
+        confidence_threshold,
+    )
 
     intent = cls.intent if cls.confidence >= confidence_threshold else "other"
     try:

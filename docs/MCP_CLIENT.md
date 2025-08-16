@@ -175,7 +175,48 @@ sequenceDiagram
 
 ---
 
-## 8. Best Practices
+## 8. schema
+* mcp tool schema: `tool_list()`
+
+```json
+{
+    'type': 'function', 
+    'name': 'ingest_product_knowledge', 
+    'description': "Use this tool to ingest a product PDF into vector database for product knowledge base only if user explisit ask for it. Requires: category, product_name, year, filename. Example: category='Internet Services', product_name='Internet_Dedicated', tahun='2025', filename='Internet_Dedicated.pdf'. ",
+    'parameters': {
+        'properties': {
+            'category': {
+                'title': 'Category', 
+                'type': 'string'
+            }, 
+            'product_name': {
+                'title': 'Product Name', 
+                'type': 'string'
+            }, 
+            'tahun': {
+                'title': 'Tahun', 
+                'type': 'string'
+            }, 
+            'filename': {
+                'title': 'Filename', 
+                'type': 'string'
+            }, 
+            'overwrite': {
+                'default': False, 
+                'title': 'Overwrite', 
+                'type': 'boolean'
+            }
+        }, 
+        'required': ['category', 'product_name', 'tahun', 'filename'], 
+        'title': 'ingest_product_knowledge_toolArguments', 
+        'type': 'object'
+    }
+}
+```
+
+---
+
+## 9. Best Practices
 
 * Gunakan `async with MCPClient()` untuk script standalone.
 * Selalu gunakan `await` di semua pemanggilan MCPClient.

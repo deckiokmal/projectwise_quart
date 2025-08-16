@@ -1,16 +1,21 @@
 # projectwise/routes/chat.py
 from __future__ import annotations
-from quart import Blueprint, current_app, request, jsonify
+from quart import Blueprint, current_app, request, Response, jsonify
 from openai import AsyncOpenAI
 
 from projectwise.utils.logger import get_logger
+from projectwise.utils.human_response import make_response
 from projectwise.services.workflow.intent_classification import route_based_on_intent
-from projectwise.services.workflow.handler_proposal_generation import run as proposal_run
+from projectwise.services.workflow.handler_proposal_generation import (
+    run as proposal_run,
+)
 from projectwise.services.workflow.reflexion_actor import ReflectionActor
 from projectwise.services.workflow.chat_with_memory import ChatWithMemory
 from projectwise.services.workflow.prompt_instruction import (
-    ACTOR_SYSTEM, CRITIC_SYSTEM,
-    PROMPT_KAK_ANALYZER, PROMPT_PRODUCT_CALCULATOR,
+    ACTOR_SYSTEM,
+    CRITIC_SYSTEM,
+    PROMPT_KAK_ANALYZER,
+    PROMPT_PRODUCT_CALCULATOR,
 )
 
 
@@ -37,6 +42,14 @@ async def chat_message():
 
     # ——— Handlers untuk tiap intent ———
     async def _h_proposal(q, cls):
+        # Check status MCP
+        if not app.extensions["mcp_status"]["connected"]:
+            response = make_response(
+                status="error", message="MCP belum terhubung.", http_status=503
+            )
+            return response
+
+        # Jalankan pipeline Document Generation
         client = type("C", (), {"llm": llm, "model": model})
         return await proposal_run(
             client=client,
@@ -47,24 +60,51 @@ async def chat_message():
         )
 
     async def _h_kak(q, cls):
-        actor = ReflectionActor.from_quart_app(app, llm=llm, model=model)
+        # Check status MCP
+        if not app.extensions["mcp_status"]["connected"]:
+            response = make_response(
+                status="error", message="MCP belum terhubung.", http_status=503
+            )
+            return response
+
+        # Jalankan Reflection Actor
+        actor = ReflectionActor.from_quart_app(app, llm=llm, llm_model=model)
         return await actor.reflection_actor_with_mcp(
+            user_id=user_id,
             prompt=q,
             actor_instruction=ACTOR_SYSTEM() + "\n" + PROMPT_KAK_ANALYZER(),
             critic_instruction=CRITIC_SYSTEM(),
         )
 
     async def _h_calc(q, cls):
-        actor = ReflectionActor.from_quart_app(app, llm=llm, model=model)
+        # Check status MCP
+        if not app.extensions["mcp_status"]["connected"]:
+            response = make_response(
+                status="error", message="MCP belum terhubung.", http_status=503
+            )
+            return response
+
+        # Jalankan Reflection Actor
+        actor = ReflectionActor.from_quart_app(app, llm=llm, llm_model=model)
         return await actor.reflection_actor_with_mcp(
+            user_id=user_id,
             prompt=q,
             actor_instruction=ACTOR_SYSTEM() + "\n" + PROMPT_PRODUCT_CALCULATOR(),
             critic_instruction=CRITIC_SYSTEM(),
         )
 
     async def _h_web(q, cls):
-        actor = ReflectionActor.from_quart_app(app, llm=llm, model=model)
+        # Check status MCP
+        if not app.extensions["mcp_status"]["connected"]:
+            response = make_response(
+                status="error", message="MCP belum terhubung.", http_status=503
+            )
+            return response
+
+        # Jalankan Reflection Actor
+        actor = ReflectionActor.from_quart_app(app, llm=llm, llm_model=model)
         return await actor.reflection_actor_with_mcp(
+            user_id=user_id,
             prompt=q,
             actor_instruction=ACTOR_SYSTEM() + "\nGunakan tool websearch bila relevan.",
             critic_instruction=CRITIC_SYSTEM(),
@@ -72,12 +112,14 @@ async def chat_message():
 
     async def _h_other(q, cls):
         # Fallback ke War Room agar tetap memanfaatkan STM/LTM
-        war = ChatWithMemory.from_quart_app(app)
-        return await war.chat(user_id=user_id, user_message=q)
+        general_conversation = ChatWithMemory.from_quart_app(app)
+        return await general_conversation.chat(user_id=user_id, user_message=q)
 
     # ——— Route intent ———
     reply, cls = await route_based_on_intent(
-        llm, user_message, model=model,
+        llm,
+        user_message,
+        model=model,
         on_proposal_generation=_h_proposal,
         on_kak_analyzer=_h_kak,
         on_product_calculator=_h_calc,
@@ -91,14 +133,26 @@ async def chat_message():
         await stm.save(user_id, "user", user_message)
         await stm.save(user_id, "assistant", str(reply))
         await ltm.add_conversation(
-            [{"role":"user","content":user_message},{"role":"assistant","content":str(reply)}],
-            user_id=user_id
+            [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": str(reply)},
+            ],
+            user_id=user_id,
         )
     except Exception:
         logger.exception("Gagal menyimpan memori.")
 
-    return jsonify({
-        "reply": reply,
-        "intent": cls.intent,
-        "confidence": cls.confidence,
-    })
+    # jawaban akhir ke user
+    # 1) Jika handler mengembalikan Response/tuple Response, kirim apa adanya
+    if isinstance(reply, Response):
+        return reply
+    if isinstance(reply, tuple) and reply and isinstance(reply[0], Response):
+        return reply  # (Response, status) dari make_response
+
+    # 2) Jika string/bytes/dll → normalisasi ke string, lalu gunakan format standar
+    if isinstance(reply, (bytes, bytearray)):
+        reply = reply.decode(errors="ignore")
+    elif not isinstance(reply, str):
+        reply = str(reply)
+
+    return jsonify({"status": "success", "reply": reply}), 200

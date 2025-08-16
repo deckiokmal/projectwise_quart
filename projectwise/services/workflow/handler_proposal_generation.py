@@ -7,6 +7,7 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from quart import Quart
+from openai import APIConnectionError
 
 from projectwise.utils.logger import get_logger
 from projectwise.utils.llm_io import json_loads_safe, short_str, shape_user, shape_system, shape_assistant_text, extract_assistant_and_tool_calls_from_responses
@@ -170,6 +171,10 @@ async def run(
         except asyncio.TimeoutError:
             log.exception("[proposal] LLM TIMEOUT (turn=%d).", turn + 1)
             return "Timeout saat meminta keputusan model."
+        except APIConnectionError:
+            logger.error("LLM APIConnectionError.")
+            human = "LLM API Connection Error. Silakan coba lagi."
+            raise RuntimeError(human)
         except Exception:
             log.exception("[proposal] LLM ERROR (turn=%d).", turn + 1)
             return "Gagal berkomunikasi dengan model."

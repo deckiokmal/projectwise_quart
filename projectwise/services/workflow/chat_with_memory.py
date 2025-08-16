@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 from typing import Optional, List, Dict, Any
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIConnectionError
 
 from projectwise.utils.logger import get_logger
 from projectwise.services.memory.long_term_memory import Mem0Manager
 from projectwise.services.memory.short_term_memory import ShortTermMemory
 from projectwise.config import ServiceConfigs
 from projectwise.services.workflow.prompt_instruction import PROMPT_WAR_ROOM
+from projectwise.utils.llm_io import build_context_blocks_memory
 
 
 logger = get_logger(__name__)
@@ -44,7 +45,8 @@ class ChatWithMemory:
 
         logger.info(
             "ChatWithMemory initialized | model=%s | max_history=%d",
-            self.llm_model, self.max_history
+            self.llm_model,
+            self.max_history,
         )
 
     # ---------- Factory agar konsisten dengan extensions ----------
@@ -57,9 +59,9 @@ class ChatWithMemory:
         llm_model: Optional[str] = None,
         max_history: int = 20,
     ) -> "ChatWithMemory":
-        service_configs: ServiceConfigs = app.extensions["service_configs"]        # type: ignore
-        long_term: Mem0Manager = app.extensions["long_term_memory"]               # type: ignore
-        short_term: ShortTermMemory = app.extensions["short_term_memory"]         # type: ignore
+        service_configs: ServiceConfigs = app.extensions["service_configs"]  # type: ignore
+        long_term: Mem0Manager = app.extensions["long_term_memory"]  # type: ignore
+        short_term: ShortTermMemory = app.extensions["short_term_memory"]  # type: ignore
 
         # Pastikan LTM siap (idempotent)
         # Mem0Manager.init() sudah dipanggil saat init_extensions, tapi aman jika dipanggil lagi
@@ -79,16 +81,26 @@ class ChatWithMemory:
     def _shape(role: str, content: str) -> Dict[str, Any]:
         return {"role": role, "content": content}
 
-    async def _build_context_blocks(self, user_id: str, user_message: str) -> Dict[str, str]:
-        # STM
-        stm_block = await self.short_term.get_history(user_id, limit=self.max_history)
-        stm_block = stm_block or "[Tidak ada riwayat percakapan]"
+    # async def _build_context_blocks(
+    #     self, user_id: str, user_message: str
+    # ) -> Dict[str, str]:
+    #     # STM
+    #     stm_block = await self.short_term.get_history(user_id, limit=self.max_history)
+    #     stm_block = stm_block or "[Tidak ada riwayat percakapan]"
 
-        # LTM (relevansi terhadap user_message)
-        ltm_results = await self.long_term.get_memories(user_message, user_id=user_id)
-        ltm_block = "\n".join(f"- {m}" for m in ltm_results) if ltm_results else "[Tidak ada memori relevan]"
+    #     # LTM (relevansi terhadap user_message)
+    #     ltm_results = await self.long_term.get_memories(user_message, user_id=user_id)
+    #     if not ltm_results:
+    #         # balas ke UI dengan pesan manusiawi (bukan [object Object])
+    #         return {"stm_block": stm_block, "ltm_block": "[Gagal memproses LTM]"}
 
-        return {"stm_block": stm_block, "ltm_block": ltm_block}
+    #     ltm_block = (
+    #         "\n".join(f"- {m}" for m in ltm_results)
+    #         if ltm_results
+    #         else "[Tidak ada memori relevan]"
+    #     )
+
+    #     return {"stm_block": stm_block, "ltm_block": ltm_block}
 
     # ---------- API utama ----------
     async def chat(
@@ -107,14 +119,19 @@ class ChatWithMemory:
         Return:
             string balasan dari LLM
         """
-        logger.info("[war_room] chat start | user=%s | msg.len=%d", user_id, len(user_message or ""))
+        logger.info(
+            "[war_room] chat start | user=%s | msg.len=%d",
+            user_id,
+            len(user_message or ""),
+        )
 
-        ctx = await self._build_context_blocks(user_id, user_message)
-        system_prompt = (
-            PROMPT_WAR_ROOM()
-            + "\n\n### Briefing Memori\n"
-            + f"**Long‑Term Memory (relevan):**\n{ctx['ltm_block']}\n\n"
-            + f"**Short‑Term History (ringkas):**\n{ctx['stm_block']}\n"
+        system_prompt = await build_context_blocks_memory(
+            short_term=self.short_term,
+            long_term=self.long_term,
+            user_id=user_id,
+            user_message=user_message,
+            max_history=self.max_history,
+            prompt_instruction=PROMPT_WAR_ROOM(),
         )
 
         messages: List[Dict[str, Any]] = [
@@ -122,7 +139,9 @@ class ChatWithMemory:
             self._shape("user", user_message),
         ]
         if assistant_message:  # hanya jika disuplai
-            messages.append(self._shape("assistant", f"Tool output: {assistant_message}"))
+            messages.append(
+                self._shape("assistant", f"Tool output: {assistant_message}")
+            )
 
         # Panggil LLM (Responses API)
         try:
@@ -132,6 +151,10 @@ class ChatWithMemory:
                 temperature=self.service_configs.llm_temperature,
             )
             assistant_reply = (resp.output_text or "").strip() or "[Tidak ada respon]"
+        except APIConnectionError:
+            logger.error("LLM APIConnectionError.")
+            human = "LLM API Connection Error. Silakan coba lagi."
+            raise RuntimeError(human)
         except Exception as e:
             logger.exception("[war_room] LLM error")
             assistant_reply = f"Maaf, terjadi kesalahan saat memproses jawaban: {e}"

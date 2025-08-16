@@ -1,7 +1,7 @@
 # projectwise/services/memory/short_term_memory.py
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -99,7 +99,7 @@ class ShortTermMemory:
                 raise
 
         # Buat block markdown terpotong
-        lines = []
+        lines: List[str] = []
         for m in raw:
             snippet = truncate_by_tokens(m.content, 150)
             lines.append(f"- **{m.role}**: {snippet}")

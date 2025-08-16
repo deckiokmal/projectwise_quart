@@ -111,3 +111,15 @@ def PROMPT_WAR_ROOM() -> str:
         "- Tampilkan: Ringkasan konteks, Risiko (dengan mitigasi), Keputusan, Aksi (PIC + ETA).\n"
         "- Jawaban ringkas & actionable."
     )
+
+
+def PROMPT_USER_CONTEXT() -> str:
+    return (
+        "# MODE: Analyst Context\n"
+        "- Gunakan long-term memory & conversation history user.\n"
+        "- Hasilkan context yang jelas & fokus pada tujuan user.\n"
+        "- Format output:\n"
+        "  * Ringkasan konteks\n"
+        "  * Tujuan utama\n"
+        "- Jawaban harus ringkas, terstruktur, dan actionable."
+    )

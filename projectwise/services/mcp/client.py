@@ -89,7 +89,7 @@ class MCPClient:
             # 7) Initial tool cache
             await self._refresh_tool_cache()
             logger.info(
-                f"Initial tools: {[f['function']['name'] for f in self.tool_cache]}"
+                f"Initial tools: {[f['name'] for f in self.tool_cache]}"
             )
             return self
 
@@ -232,27 +232,23 @@ class MCPClient:
             logger.debug("Skipping tool cache refresh: no session")
             return
 
-        try:
-            resp = await self.session.list_tools()  # type: ignore
-            self.tool_cache = []
-            for t in resp.tools:
-                self.tool_cache.append(
+        # Jika belum ada cache, fetch sekali
+        if not self.tool_cache:
+            try:
+                result = await self.session.list_tools()  # type: ignore
+                self.tool_cache = [
                     {
+                        "type": "function",
                         "name": t.name,
-                        "title": t.title,
                         "description": t.description,
-                        "inputSchema": t.inputSchema,  # simpan schema asli
-                        "function": {  # format untuk LLM function calling
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.inputSchema,
-                        },
+                        "parameters": t.inputSchema,
                     }
-                )
-
-            logger.debug("Tool cache refreshed (%d tools)", len(self.tool_cache))
-        except Exception as e:
-            logger.warning("refresh_tool_cache failed: %s", e, exc_info=True)
+                    for t in result.tools
+                ]
+            except Exception as e:
+                logger.error(f"Initial get_tools() failed: {e}", exc_info=True)
+                
+        return self.tool_cache # type: ignore
 
     # ————— MESSAGE HANDLER for notifications —————
     def _on_session_message(self, msg: Any) -> None:

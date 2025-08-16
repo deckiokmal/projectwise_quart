@@ -656,7 +656,7 @@ body.theme-dark {
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     color: var(--text);
-    background: rgba(255, 255, 255, 0.438);
+    background: rgba(255, 255, 255, 0.11);
     box-shadow: var(--shadow-inset);
 }
 
@@ -810,4 +810,42 @@ body.theme-dark {
         animation-iteration-count: 1 !important;
         transition-duration: .01ms !important;
     }
+}
+
+/* ----------------------------------- */
+/* markdown summary kak dan product */
+/* ----------------------------------- */
+.md-table-wrap {
+    overflow: auto;
+    max-width: 100%;
+    margin: .5rem 0 1rem;
+    border: 1px solid var(--border, rgb(255, 255, 255));
+    border-radius: var(--radius-lg, 10px);
+}
+
+.md-table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 640px;
+}
+
+.md-table-wrap th,
+.md-table-wrap td {
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, .08));
+}
+
+.codebar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: .25rem;
+}
+
+.btn-copy {
+    font: inherit;
+    padding: .25rem .5rem;
+    border: 1px solid var(--border, rgb(255, 255, 255));
+    background: rgb(255, 10, 10);
+    border-radius: .5rem;
+    cursor: pointer;
 }

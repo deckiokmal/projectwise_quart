@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import tiktoken
 from typing import Any
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 def truncate_by_tokens(text: str, max_tokens: int, model: str = "gpt-4o-mini") -> str:
@@ -22,6 +24,7 @@ def truncate_by_tokens(text: str, max_tokens: int, model: str = "gpt-4o-mini") -
 
     return enc.decode(tokens[:max_tokens])
 
+
 def safe_args(obj: Any) -> str:
     try:
         s = json.dumps(obj)
@@ -38,3 +41,10 @@ def stringify(obj: Any, limit: int = 4000) -> str:
         return s
     except Exception:
         return str(obj)[:limit]
+    
+
+WIB = ZoneInfo("Asia/Jakarta")
+
+def wib_now_iso(timespec: str = "seconds") -> str:
+    """Kembalikan waktu lokal WIB dalam ISO-8601 (contoh: 2025-08-17T01:55:12+07:00)."""
+    return datetime.now(WIB).isoformat(timespec=timespec)
