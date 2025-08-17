@@ -121,6 +121,54 @@ document.addEventListener('DOMContentLoaded', () => {
    *  - renderMarkdown: string → HTML
    *  - enhanceRendered: pasca-render (tabel, link, tombol copy)
    * ============================= */
+  // --- helper: decode \n, \t, \\ menjadi karakter asli ---
+  const decodeEscapes = (text) => {
+    const s = String(text ?? '');
+    // Cepat & aman: coba JSON.parse pada string quoted
+    try {
+      return JSON.parse('"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"');
+    } catch {
+      // Fallback manual jika ada karakter aneh
+      return s
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t');
+    }
+  };
+
+  // --- helper: unwrap + re-render fenced ```markdown ... ``` ---
+  const unwrapMarkdownFences = (src) => {
+    const wholeRe = /^\s*```(?:markdown|md)\s*\n([\s\S]*?)\n```[\s]*$/i;
+    const partRe  = /```(?:markdown|md)\s*\n([\s\S]*?)\n```/gi;
+
+    // Jika SELURUH teks adalah satu blok markdown
+    const m = src.match(wholeRe);
+    if (m) return { text: m[1], htmlSegments: null };
+
+    // Jika ada satu/lebih segmen markdown di tengah
+    if (partRe.test(src)) {
+      // Reset lastIndex utk loop kedua
+      partRe.lastIndex = 0;
+      let out = '';
+      let lastIdx = 0;
+      let match;
+      while ((match = partRe.exec(src)) !== null) {
+        // Tambah bagian plaintext sebelum segmen
+        out += src.slice(lastIdx, match.index);
+        // Render segmen markdown → HTML lalu sisipkan
+        const inner = match[1];
+        out += md.render(inner); // aman: md.html=false
+        lastIdx = partRe.lastIndex;
+      }
+      // Sisa tail setelah segmen terakhir
+      out += src.slice(lastIdx);
+      return { text: null, htmlSegments: out };
+    }
+
+    // Tidak ada fence markdown khusus
+    return { text: src, htmlSegments: null };
+  };
+
   const promoteSectionHeadings = (text) => {
     const sections = [
       'proyek','barang','jasa','rekomendasi_principal','ruang_lingkup',
@@ -130,7 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
       'analisis_kompetitor','dependensi_pekerjaan','persyaratan_tkdn_k3ll',
       'persyaratan_pembayaran_jaminan','timeline_constraint',
       'kriteria_evaluasi_tender','pertanyaan_klarifikasi',
-      'strategi_penawaran_harga','rekomendasi cost structure'
+      'strategi_penawaran_harga', 'komponen_biaya_kritis', 'mitigasi_risiko_sla',
+      'mitigasi_risiko_penalti','dasar_go_no_go','definisi_walk_away_price','rekomendasi cost structure',
+      'komponen_biaya_kritis', 'mitigasi_risiko_sla','mitigasi_risiko_penalti', 'dasar_go_no_go','definisi_walk_away_price','capex', 'opex', 'cost of sales'
     ];
     const re = new RegExp(`^(?:${sections.join('|')}):\\s*$`, 'gmi');
     return String(text || '').replace(re, (m) => {
@@ -140,9 +190,21 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const renderMarkdown = (input, { promoteHeadings = false } = {}) => {
-    const text = String(input ?? '');
-    const src = promoteHeadings ? promoteSectionHeadings(text) : text;
-    return md.render(src);
+    // 1) Normalisasi escape → karakter asli
+    const decoded = decodeEscapes(input);
+
+    // 2) Opsional: heading otomatis seperti sebelumnya
+    const promoted = promoteHeadings ? promoteSectionHeadings(decoded) : decoded;
+
+    // 3) Deteksi & tangani blok ```markdown …```
+    const { text, htmlSegments } = unwrapMarkdownFences(promoted);
+
+    // Jika htmlSegments terisi, itu berarti ada satu/lebih segmen markdown yang sudah
+    // langsung dirender menjadi HTML (disisipkan ke dalam teks).
+    if (htmlSegments !== null) return htmlSegments;
+
+    // Jika hanya sebuah fenced penuh atau tidak ada fenced sama sekali → render biasa
+    return md.render(String(text || ''));
   };
 
   const enhanceRendered = (containerEl) => {
@@ -372,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formData = new FormData(el.formKak);
     el.modalKak?.classList.add('hidden');
 
-    toast('Upload KAK/TOR diterima, menunggu job_id…', 'warning', 3000);
+    toast('KAK analisis proses di background.', 'warning', 3000);
 
     try {
       const res = await fetch('/upload-kak/', { method: 'POST', body: formData });
@@ -467,7 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // hard timeout
         if (Date.now() - startedAt > maxWaitMs) {
           setTyping(false);
-          toast('Polling timeout, coba lagi.', 'warning');
+          toast('Polling timeout, coba lagi.', 'warning', 2500);
           break;
         }
 
@@ -476,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
           res = await fetch(statusUrl);
         } catch (netErr) {
           setTyping(false);
-          toast('Gagal polling status: ' + (netErr?.message || netErr), 'error');
+          toast('Gagal polling status: ' + (netErr?.message || netErr), 'error', 2500);
           break;
         }
 
@@ -508,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (OK_STATUSES.has(s)) {
           toast(
             data?.message ||
-            (s === 'skipped' ? 'File sudah pernah diingest, dilewati.' : 'Ingestion selesai.'),
+            (s === 'skipped' ? 'File sudah pernah diingest, dilewati.' : 'Ingestion selesai.', 2000),
             'ok'
           );
 
@@ -523,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3) Error / status lain → tampilkan pesan lalu berhenti
         const msg = data?.message || raw || res.statusText || 'Terjadi kesalahan saat memeriksa status.';
-        toast(msg, mapStatusToToastType(s));
+        toast(msg, mapStatusToToastType(s), 2500);
         stopped = true;
         break;
       }
