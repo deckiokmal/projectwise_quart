@@ -54,9 +54,16 @@ async def init_extensions(app: Quart) -> None:
 
     # Initialise long‑term memory (vector store)
     long_term_memory = Mem0Manager(service_configs)
-    await long_term_memory.init()
+    try:
+        await long_term_memory.init()
+    except Exception as e:
+        logger.warning("LongTermMemory init error (will run degraded): %s", e)
+        
     app.extensions["long_term_memory"] = long_term_memory
-    logger.info("LongTermMemory (Mem0Manager) initialised")
+    logger.info(
+        "LongTermMemory (Mem0Manager) initialised (ready=%s, degraded=%s)",
+        long_term_memory.ready, long_term_memory.degraded
+    )
 
 
 async def shutdown_extensions(app: Quart) -> None:

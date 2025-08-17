@@ -1,535 +1,661 @@
-/* ==========================================================================
-   PROJECTWISE — MAIN UI SCRIPT (Refactor 2025-08-17)
+/* ============================================================================
+   PROJECTWISE — MAIN UI SCRIPT (refactor)
    - Chat UI (bubble, typing, empty state)
-   - Input bar horizontal [+] textarea flex [Send]
+   - Input bar (textarea + send) dengan Enter=submit, Shift+Enter=newline
    - Upload menu → modal KAK/Product + polling ingestion
    - Topbar mobile toggle
    - Toast notifications
-   - Event ke MCP: ui:submit / ui:mcp-*
-   - Fallback otomatis ke /chat/message bila MCP tidak aktif
+   - MCP UI controls (badge + connect/disconnect/reconnect)
+   - Fallback ke /chat/message bila MCP tidak aktif (di sisi pemanggil)
+   ============================================================================ */
 
-   NOTE REFaktor:
-   - [ADDED] Markdown pipeline (markdown-it) terpusat: renderMarkdown(), promoteSectionHeadings(), enhanceRendered()
-   - [ADDED] UI.appendAssistantSummary() → khusus summary (heading otomatis + table wrapper + copy buttons)
-   - [CHANGED] createMsgEl() → konsisten kembalikan { el, contentEl }, panggil enhanceRendered()
-   - [ADDED] Inject runtime CSS untuk border tabel putih (tanpa ubah file CSS global)
-   - [REMOVED] Duplikasi kecil pada appendMessage berbasis text/html (dikonvergensi ke createMsgEl)
-   ========================================================================== */
+'use strict';
 
 document.addEventListener('DOMContentLoaded', () => {
-  (function initProjectWiseUI() {
-    'use strict';
-    if (window.__pwMainInitialized) return;
-    window.__pwMainInitialized = true;
+  if (window.__pwMainInitialized) return; // cegah init ganda
+  window.__pwMainInitialized = true;
 
-    /* ===== Shortcuts ===== */
-    const $  = (sel, el = document) => el.querySelector(sel);
-    const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
-    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  /* =============================
+   *  Util DOM & helpers umum
+   *  (Komentar berbahasa Indonesia, nama fungsi/variabel berbahasa Inggris)
+   * ============================= */
+  const $  = (sel, el = document) => el.querySelector(sel);
+  const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-    /* ===== Markdown-it init (gunakan lib yang sudah di-load di HTML) ===== */
-    // [CHANGED] Gunakan 1 instance saja, aktifkan options yang aman untuk chat.
-    const md = window.markdownit({
-      html: false,        // jangan render HTML mentah
-      linkify: true,      // deteksi URL → <a>
-      breaks: true,       // newline → <br>
-      typographer: true,  // tanda kutip pintar, dll
-    });
+  /* =============================
+   *  Markdown renderer (markdown-it)
+   *  - Satu instance untuk seluruh halaman
+   *  - Opsi aman untuk konten chat
+   * ============================= */
+  const md = window.markdownit({
+    html: false,
+    linkify: true,
+    breaks: true,
+    typographer: true,
+  });
 
-    // [ADDED] Inject CSS runtime untuk border tabel putih & komponen kecil.
-    (function injectRuntimeStyle() {
-      const id = 'pw-runtime-style';
-      if (document.getElementById(id)) return;
-      const style = document.createElement('style');
-      style.id = id;
-      style.textContent = `
-        .md-table-wrap { overflow:auto; max-width:100%; margin:.5rem 0 1rem; border:1px solid rgba(255,255,255,.25); border-radius:10px; }
-        .md-table-wrap table { width:100%; border-collapse:collapse; min-width:640px; }
-        .md-table-wrap th, .md-table-wrap td { padding:.5rem .75rem; border:1px solid rgba(255,255,255,0.6); } /* border putih jelas */
-        .codebar { display:flex; justify-content:flex-end; margin-bottom:.25rem; }
-        .btn-copy, .btn-expand { font:inherit; padding:.25rem .5rem; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.07); border-radius:.5rem; cursor:pointer; }
-        .btn-expand { margin-top:.5rem; }
-      `;
-      document.head.appendChild(style);
-    })();
+  // Inject CSS runtime untuk kebutuhan kecil (border tabel, dsb) tanpa ubah file CSS global
+  (function injectRuntimeStyle() {
+    const id = 'pw-runtime-style';
+    if (document.getElementById(id)) return;
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = `
+      .md-table-wrap { overflow:auto; max-width:100%; margin:.5rem 0 1rem; border:1px solid rgba(255, 255, 255, 0.95); border-radius:10px; }
+      .md-table-wrap table { width:100%; border-collapse:collapse; min-width:640px; }
+      .md-table-wrap th, .md-table-wrap td { padding:.5rem .75rem; border:1px solid rgba(255, 255, 255, 0.92); }
+      .codebar { display:flex; justify-content:flex-end; margin-bottom:.25rem; }
+      .btn-copy, .btn-expand { font:inherit; padding:.25rem .5rem; border:1px solid rgba(255, 255, 255, 0.89); background:rgba(255,255,255,.07); border-radius:.5rem; cursor:pointer; }
+      .btn-expand { margin-top:.5rem; }
+    `;
+    document.head.appendChild(style);
+  })();
 
-    /* ===== Elements ===== */
-    const getChatArea = () =>
-      document.getElementById('chat-scroll') ||
-      document.querySelector('.chat__messages') ||
-      document.querySelector('.main__chat');
+  /* =============================
+   *  Referensi elemen UI
+   * ============================= */
+  const getChatArea = () =>
+    document.getElementById('chat-scroll') ||
+    document.querySelector('.chat__messages') ||
+    document.querySelector('.main__chat');
 
-    const el = {
-      // chat
-      chatForm:   $('#chat-form'),
-      chatInput:  $('#chat-input'),
-      typing:     $('#typing'),
-      emptyState: $('#empty-state'),
-      // upload & modal
-      uploadBtn:     $('#upload-btn'),
-      uploadMenu:    $('#upload-menu'),
-      modalKak:      $('#modal-kak'),
-      modalProduct:  $('#modal-product'),
-      formKak:       $('#form-kak'),
-      formProduct:   $('#form-product'),
-      fileInput:     $('#file-input'),
-      attachmentPreview: $('#attachment-preview'),
-      // layout
-      toastRoot:      $('#toast-root'),
-      btnTopbarToggle: $('#btnTopbarToggle'),
-      // MCP UI controls
-      mcpStatus:   $('#mcpStatus'),
-      btnConnect:  $('#btnConnect'),
-      btnDisconnect: $('#btnDisconnect'),
-      btnReconnect:  $('#btnReconnect'),
-    };
+  const el = {
+    // chat
+    chatForm:   $('#chat-form'),
+    chatInput:  $('#chat-input'),
+    typing:     $('#typing'),
+    emptyState: $('#empty-state'),
+    // upload & modal
+    uploadBtn:       $('#upload-btn'),
+    uploadMenu:      $('#upload-menu'),
+    modalKak:        $('#modal-kak'),
+    modalProduct:    $('#modal-product'),
+    formKak:         $('#form-kak'),
+    formProduct:     $('#form-product'),
+    fileInput:       $('#file-input'),      // dipakai oleh UI.clearAttachments (opsional)
+    attachmentPreview: $('#attachment-preview'),
+    // layout
+    toastRoot:      $('#toast-root'),
+    btnTopbarToggle: $('#btnTopbarToggle'),
+    // MCP UI controls
+    mcpStatus:    $('#mcpStatus'),
+    btnConnect:   $('#btnConnect'),
+    btnDisconnect: $('#btnDisconnect'),
+    btnReconnect:  $('#btnReconnect'),
+  };
 
-    /* ===== Toast ===== */
-    const toast = (message, type = 'ok', timeout = 3000) => {
-      if (!el.toastRoot) return console.log(`[toast:${type}]`, message);
-      const t = document.createElement('div');
-      t.className = `toast toast--${type}`;
-      t.innerHTML = `<span>${message}</span>`;
-      el.toastRoot.appendChild(t);
-      const remove = () => t.remove();
-      setTimeout(remove, timeout);
-      t.addEventListener('click', remove, { once: true });
-    };
+  /* =============================
+   *  Toast sederhana
+   *  - Klik untuk menutup
+   *  - Timeout auto-hilang
+   * ============================= */
+  const toast = (message, type = 'ok', timeout = 3000) => {
+    if (!el.toastRoot) return console.log(`[toast:${type}]`, message);
+    const t = document.createElement('div');
+    t.className = `toast toast--${type}`;
+    t.innerHTML = `<span>${message}</span>`;
+    el.toastRoot.appendChild(t);
+    const remove = () => t.remove();
+    setTimeout(remove, timeout);
+    t.addEventListener('click', remove, { once: true });
+  };
 
-    /* ===== Auto-grow textarea ===== */
-    const autoGrow = (ta) => {
-      if (!ta) return;
-      ta.style.height = 'auto';
-      const max = Math.floor(window.innerHeight * 0.45);
-      ta.style.height = `${clamp(ta.scrollHeight, 40, max)}px`;
-    };
-    el.chatInput && ['input','change'].forEach(evt =>
-      el.chatInput.addEventListener(evt, () => autoGrow(el.chatInput))
-    );
+  /* =============================
+   *  Auto-grow untuk textarea input chat
+   * ============================= */
+  const autoGrow = (ta) => {
+    if (!ta) return;
+    ta.style.height = 'auto';
+    const max = Math.floor(window.innerHeight * 0.45);
+    ta.style.height = `${clamp(ta.scrollHeight, 40, max)}px`;
+  };
+  if (el.chatInput) {
+    ['input', 'change'].forEach(evt => el.chatInput.addEventListener(evt, () => autoGrow(el.chatInput)));
     autoGrow(el.chatInput);
+  }
 
-    /* ==========================================================================
-       MARKDOWN RENDERING PIPELINE
-       ========================================================================== */
+  /* =============================
+   *  Markdown pipeline
+   *  - promoteSectionHeadings: "xxx:" → heading otomatis
+   *  - renderMarkdown: string → HTML
+   *  - enhanceRendered: pasca-render (tabel, link, tombol copy)
+   * ============================= */
+  const promoteSectionHeadings = (text) => {
+    const sections = [
+      'proyek','barang','jasa','rekomendasi_principal','ruang_lingkup',
+      'deliverables','minimum_struktur_organisasi','perizinan_pekerjaan',
+      'service_level_agreement','biaya_tersembunyi','kepatuhan_wajib',
+      'risiko_teknis','risiko_non_teknis','peluang_value_added',
+      'analisis_kompetitor','dependensi_pekerjaan','persyaratan_tkdn_k3ll',
+      'persyaratan_pembayaran_jaminan','timeline_constraint',
+      'kriteria_evaluasi_tender','pertanyaan_klarifikasi',
+      'strategi_penawaran_harga','rekomendasi cost structure'
+    ];
+    const re = new RegExp(`^(?:${sections.join('|')}):\\s*$`, 'gmi');
+    return String(text || '').replace(re, (m) => {
+      const title = m.replace(':','').trim().replace(/_/g,' ');
+      return '### ' + title.charAt(0).toUpperCase() + title.slice(1);
+    });
+  };
 
-    // [ADDED] Promosikan "xxx:" (baris sendiri) menjadi "### Xxx"
-    const promoteSectionHeadings = (text) => {
-      const sections = [
-        'proyek','barang','jasa','rekomendasi_principal','ruang_lingkup',
-        'deliverables','minimum_struktur_organisasi','perizinan_pekerjaan',
-        'service_level_agreement','biaya_tersembunyi','kepatuhan_wajib',
-        'risiko_teknis','risiko_non_teknis','peluang_value_added',
-        'analisis_kompetitor','dependensi_pekerjaan','persyaratan_tkdn_k3ll',
-        'persyaratan_pembayaran_jaminan','timeline_constraint',
-        'kriteria_evaluasi_tender','pertanyaan_klarifikasi',
-        'strategi_penawaran_harga','rekomendasi cost structure'
-      ];
-      const re = new RegExp(`^(?:${sections.join('|')}):\\s*$`, 'gmi');
-      return String(text || '').replace(re, (m) => {
-        const title = m.replace(':','').trim().replace(/_/g,' ');
-        return '### ' + title.charAt(0).toUpperCase() + title.slice(1);
-      });
-    };
+  const renderMarkdown = (input, { promoteHeadings = false } = {}) => {
+    const text = String(input ?? '');
+    const src = promoteHeadings ? promoteSectionHeadings(text) : text;
+    return md.render(src);
+  };
 
-    // [ADDED] Render markdown dari string → HTML siap pakai.
-    const renderMarkdown = (input, { promoteHeadings = false } = {}) => {
-      const text = String(input ?? '');
-      const src = promoteHeadings ? promoteSectionHeadings(text) : text;
-      return md.render(src);
-    };
+  const enhanceRendered = (containerEl) => {
+    if (!containerEl) return;
 
-    // [ADDED] Enhancement pasca-render: table wrapper, link target, tombol Copy untuk code.
-    const enhanceRendered = (containerEl) => {
-      if (!containerEl) return;
-
-      // wrap table untuk scroll horizontal
-      containerEl.querySelectorAll('table').forEach((tb) => {
-        // skip kalau sudah dibungkus
-        if (tb.parentElement && tb.parentElement.classList.contains('md-table-wrap')) return;
-        const wrap = document.createElement('div');
-        wrap.className = 'md-table-wrap';
-        tb.parentNode.insertBefore(wrap, tb);
-        wrap.appendChild(tb);
-      });
-
-      // buka link di tab baru
-      containerEl.querySelectorAll('a[href]').forEach((a) => {
-        a.setAttribute('target', '_blank');
-        a.setAttribute('rel', 'noopener noreferrer');
-      });
-
-      // tombol copy untuk block code
-      containerEl.querySelectorAll('pre > code').forEach((code) => {
-        const pre = code.parentElement;
-        if (pre.previousElementSibling && pre.previousElementSibling.classList?.contains('codebar')) return; // sudah ada
-        const bar = document.createElement('div');
-        bar.className = 'codebar';
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn-copy';
-        btn.textContent = 'Copy';
-        btn.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(code.innerText);
-            toast('Disalin ke clipboard', 'ok');
-          } catch {
-            toast('Gagal menyalin', 'error');
-          }
-        });
-        bar.appendChild(btn);
-        pre.parentNode.insertBefore(bar, pre);
-      });
-    };
-
-    /* ==========================================================================
-       BUBBLES / APPEND MESSAGE
-       ========================================================================== */
-
-    // [CHANGED] createMsgEl konsisten: terima {html|text}, render markdown sekali di sini, enhance di sini.
-    const createMsgEl = ({ role = 'assistant', html = '', text = '', meta = '' } = {}) => {
-      const isUser = role === 'user';
+    // Bungkus <table> untuk scroll horizontal dan border
+    containerEl.querySelectorAll('table').forEach((tb) => {
+      if (tb.parentElement && tb.parentElement.classList.contains('md-table-wrap')) return;
       const wrap = document.createElement('div');
-      wrap.className = `msg ${isUser ? 'msg--user' : 'msg--assistant'}`;
-
-      const avatar = document.createElement('div');
-      avatar.className = 'msg__avatar';
-      avatar.innerHTML = isUser ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
-
-      const content = document.createElement('div');
-      content.className = 'msg__content';
-
-      // Jika ada html, pakai apa adanya; jika tidak, render markdown dari text.
-      const rendered = html || renderMarkdown(String(text || ''));
-      content.innerHTML = rendered;
-
-      // [ADDED] Enhancements UI setelah render
-      enhanceRendered(content);
-
-      const metaEl = document.createElement('div');
-      metaEl.className = 'msg__meta';
-      metaEl.textContent = meta || (new Date()).toLocaleTimeString();
-
-      const main = document.createElement('div');
-      main.appendChild(content);
-      main.appendChild(metaEl);
-
-      if (isUser) { wrap.appendChild(main); wrap.appendChild(avatar); }
-      else { wrap.appendChild(avatar); wrap.appendChild(main); }
-
-      return { el: wrap, contentEl: content };
-    };
-
-    // [CHANGED] appendMessage: satukan logika; gunakan createMsgEl.
-    const appendMessage = ({ role = 'assistant', html = '', text = '', meta = '' } = {}) => {
-      const area = getChatArea();
-      const { el: bubble, contentEl } = createMsgEl({ role, html, text, meta });
-      area?.appendChild(bubble);
-      hideEmptyState();
-      scrollToBottom();
-      return { el: bubble, contentEl };
-    };
-
-    const showEmptyState = () => { el.emptyState?.classList.remove('hidden'); };
-    const hideEmptyState = () => { el.emptyState?.classList.add('hidden'); };
-
-    const scrollToBottom = () => {
-      const area = getChatArea();
-      if (!area) return;
-      area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
-    };
-
-    let typingCount = 0;
-    const setTyping = (on) => {
-      typingCount = clamp(typingCount + (on ? 1 : -1), 0, 99);
-      const show = typingCount > 0;
-      if (!el.typing) return;
-      el.typing.classList.toggle('hidden', !show);
-      if (show) scrollToBottom();
-    };
-
-    /* ==========================================================================
-       TOPBAR TOGGLE & UPLOAD MENU (unchanged kecuali minor konsistensi)
-       ========================================================================== */
-    el.btnTopbarToggle && el.btnTopbarToggle.addEventListener('click', () => {
-      document.body.classList.toggle('sidebar-open');
+      wrap.className = 'md-table-wrap';
+      tb.parentNode.insertBefore(wrap, tb);
+      wrap.appendChild(tb);
     });
 
-    const toggleUploadMenu = (force = null) => {
-      if (!el.uploadMenu) return;
-      const willShow = force ?? el.uploadMenu.classList.contains('hidden');
-      el.uploadMenu.classList.toggle('hidden', !willShow);
-      el.uploadBtn?.setAttribute('aria-expanded', String(willShow));
-    };
-
-    el.uploadBtn && el.uploadBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleUploadMenu();
+    // Buka tautan di tab baru untuk keamanan
+    containerEl.querySelectorAll('a[href]').forEach((a) => {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
     });
 
-    document.addEventListener('click', (e) => {
-      if (!el.uploadMenu || el.uploadMenu.classList.contains('hidden')) return;
-      const within = el.uploadMenu.contains(e.target) || (el.uploadBtn && el.uploadBtn.contains(e.target));
-      if (!within) toggleUploadMenu(false);
-    });
-
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleUploadMenu(false); });
-
-    // Klik item upload → buka modal
-    el.uploadMenu && el.uploadMenu.addEventListener('click', (e) => {
-      const btn = e.target.closest('.upload-menu__item'); if (!btn) return;
-      const type = btn.getAttribute('data-type');
-      toggleUploadMenu(false);
-      if (type === 'kak') el.modalKak?.classList.remove('hidden');
-      if (type === 'product') el.modalProduct?.classList.remove('hidden');
-    });
-
-    // Tutup modal saat klik backdrop / tombol close
-    $$('.modal').forEach((modal) => {
-      modal.addEventListener('click', (e) => {
-        if (e.target.dataset.close || e.target.classList.contains('modal__backdrop')) {
-          modal.classList.add('hidden');
+    // Tombol "Copy" untuk blok kode
+    containerEl.querySelectorAll('pre > code').forEach((code) => {
+      const pre = code.parentElement;
+      if (pre.previousElementSibling && pre.previousElementSibling.classList?.contains('codebar')) return;
+      const bar = document.createElement('div');
+      bar.className = 'codebar';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-copy';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(code.innerText);
+          toast('Disalin ke clipboard', 'ok');
+        } catch {
+          toast('Gagal menyalin', 'error');
         }
       });
+      bar.appendChild(btn);
+      pre.parentNode.insertBefore(bar, pre);
     });
+  };
 
-    /* ==========================================================================
-       MCP Status Controls (tidak diubah kecuali konsistensi handler)
-       ========================================================================== */
-    const setMCPStatus = (status) => {
-      if (!el.mcpStatus) return;
-      el.mcpStatus.textContent = status;
-      el.mcpStatus.dataset.status = status;
-    };
+  /* =============================
+   *  Chat bubbles & append
+   *  - createMsgEl: buat bubble berdasarkan role
+   *  - appendMessage: sisipkan ke area chat
+   * ============================= */
+  const createMsgEl = ({ role = 'assistant', html = '', text = '', meta = '' } = {}) => {
+    const isUser = role === 'user';
 
-    el.btnConnect   && el.btnConnect.addEventListener('click', () => document.dispatchEvent(new CustomEvent('ui:mcp-connect-click')));
-    el.btnDisconnect&& el.btnDisconnect.addEventListener('click', () => document.dispatchEvent(new CustomEvent('ui:mcp-disconnect-click')));
-    el.btnReconnect && el.btnReconnect.addEventListener('click', () => document.dispatchEvent(new CustomEvent('ui:mcp-reconnect-click')));
+    const wrap = document.createElement('div');
+    wrap.className = `msg ${isUser ? 'msg--user' : 'msg--assistant'}`;
 
-    /* ==========================================================================
-       FORM: KAK (upload + polling) — (struktur logika dipertahankan)
-       ========================================================================== */
-    el.formKak && el.formKak.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.currentTarget;
-      const formData = new FormData(form);
+    const avatar = document.createElement('div');
+    avatar.className = 'msg__avatar';
+    avatar.innerHTML = isUser ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
 
-      try {
-        const res = await fetch(form.action, { method: 'POST', body: formData });
-        let data = null, raw = '';
-        try { data = await res.json(); } catch { raw = await res.text().catch(()=>''); }
+    const content = document.createElement('div');
+    content.className = 'msg__content';
 
-        if (!res.ok) {
-          const msg = data?.error || data?.message || data?.detail || res.statusText || 'Gagal upload.';
-          throw new Error(msg);
-        }
+    const rendered = html || renderMarkdown(String(text || ''));
+    content.innerHTML = rendered;
+    enhanceRendered(content);
 
-        // Normalisasi
-        const message   = data?.message || 'Upload diproses.';
-        const jobId     = data?.job_id   || data?.jobId   || data?.jobID;
-        const statusUrl = data?.status_url || data?.statusUrl;
+    const metaEl = document.createElement('div');
+    metaEl.className = 'msg__meta';
+    metaEl.textContent = meta || (new Date()).toLocaleTimeString();
 
-        toast(message, 'ok', 2500);
+    const main = document.createElement('div');
+    main.appendChild(content);
+    main.appendChild(metaEl);
 
-        if (jobId && statusUrl && typeof pollStatus === 'function') {
-          pollStatus(jobId, statusUrl);
-        } else if (res.status === 202) {
-          toast('Server menerima request, tapi job_id/status_url tidak ditemukan.', 'warning', 4000);
-        }
-      } catch (err) {
-        const msg = err?.message || String(err);
-        toast('Upload KAK gagal: ' + msg, 'error', 5000);
-      } finally {
-        el.formKak.reset();
+    if (isUser) { wrap.appendChild(main); wrap.appendChild(avatar); }
+    else { wrap.appendChild(avatar); wrap.appendChild(main); }
+
+    return { el: wrap, contentEl: content };
+  };
+
+  const appendMessage = ({ role = 'assistant', html = '', text = '', meta = '' } = {}) => {
+    const area = getChatArea();
+    const { el: bubble, contentEl } = createMsgEl({ role, html, text, meta });
+    area?.appendChild(bubble);
+    hideEmptyState();
+    scrollToBottom();
+    return { el: bubble, contentEl };
+  };
+
+  // Bubble asisten sementara untuk menunggu respons (akan diisi saat balasan datang)
+  let pendingAssistant = null; // { el, contentEl } | null
+  const ensurePendingAssistant = () => {
+    if (pendingAssistant && document.body.contains(pendingAssistant.el)) return pendingAssistant;
+    pendingAssistant = appendMessage({ role: 'assistant', html: '<em>…</em>' });
+    return pendingAssistant;
+  };
+
+  const showEmptyState = () => { el.emptyState?.classList.remove('hidden'); };
+  const hideEmptyState = () => { el.emptyState?.classList.add('hidden'); };
+
+  const scrollToBottom = () => {
+    const area = getChatArea();
+    if (!area) return;
+    area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+  };
+
+  /* =============================
+   *  Typing indicator (#typing)
+   *  - Ditaruh di paling bawah area chat (fallback universal)
+   *  - Muncul saat ada proses berjalan (refcount berbasis typingCount)
+   * ============================= */
+  const placeTypingAtBottom = () => {
+    const area = getChatArea();
+    const typingEl = document.getElementById('typing');
+    if (!area || !typingEl) return;
+    area.appendChild(typingEl);
+  };
+
+  let typingCount = 0;
+  const setTyping = (on) => {
+    typingCount = clamp(typingCount + (on ? 1 : -1), 0, 99);
+    const show = typingCount > 0;
+    if (!el.typing) return;
+    el.typing.classList.toggle('hidden', !show);
+    if (show) {
+      placeTypingAtBottom();
+      scrollToBottom();
+    }
+  };
+
+  /* =============================
+   *  Topbar toggle & Upload menu
+   * ============================= */
+  el.btnTopbarToggle && el.btnTopbarToggle.addEventListener('click', () => {
+    // Toggle kelas untuk membuka/menutup menu pada tampilan mobile
+    document.body.classList.toggle('sidebar-open');
+  });
+
+  const toggleUploadMenu = (force = null) => {
+    if (!el.uploadMenu) return;
+    const willShow = force ?? el.uploadMenu.classList.contains('hidden');
+    el.uploadMenu.classList.toggle('hidden', !willShow);
+    el.uploadBtn?.setAttribute('aria-expanded', String(willShow));
+  };
+
+  el.uploadBtn && el.uploadBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleUploadMenu();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!el.uploadMenu || el.uploadMenu.classList.contains('hidden')) return;
+    const within = el.uploadMenu.contains(e.target) || (el.uploadBtn && el.uploadBtn.contains(e.target));
+    if (!within) toggleUploadMenu(false);
+  });
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleUploadMenu(false); });
+
+  // Klik item pada upload menu untuk membuka modal yang sesuai
+  el.uploadMenu && el.uploadMenu.addEventListener('click', (e) => {
+    const btn = e.target.closest('.upload-menu__item'); if (!btn) return;
+    const type = btn.getAttribute('data-type');
+    toggleUploadMenu(false);
+    if (type === 'kak') el.modalKak?.classList.remove('hidden');
+    if (type === 'product') el.modalProduct?.classList.remove('hidden');
+  });
+
+  // Tutup modal saat klik backdrop/tombol close
+  $$('.modal').forEach((modal) => {
+    modal.addEventListener('click', (e) => {
+      if (e.target.dataset.close || e.target.classList.contains('modal__backdrop')) {
+        modal.classList.add('hidden');
       }
     });
+  });
 
-    /* ==========================================================================
-       FORM: Product (contoh) — bagian lain serupa (dipersingkat)
-       ========================================================================== */
-    el.formProduct && el.formProduct.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.currentTarget;
-      const fd = new FormData(form);
+  /* =============================
+   *  MCP status badge + tombol kontrol
+   *  - Sinkron teks, warna badge, dan visibilitas tombol
+   * ============================= */
+  const setMCPStatus = (status, label) => {
+    const badge = el.mcpStatus;
+    if (!badge) return;
 
-      setTyping(true);
-      try {
-        const res = await fetch(form.action, { method: 'POST', body: fd });
-        let data = null, raw = '';
-        try { data = await res.json(); } catch { raw = await res.text().catch(()=>''); }
+    const text = label || (String(status || '').charAt(0).toUpperCase() + String(status || '').slice(1));
+    badge.textContent = text;
+    badge.dataset.status = status;
 
-        setTyping(false);
+    // Warna badge
+    badge.classList.remove('badge--ok', 'badge--warning', 'badge--danger');
+    if (status === 'connected') badge.classList.add('badge--ok');
+    else if (status === 'connecting' || status === 'pending') badge.classList.add('badge--warning');
+    else badge.classList.add('badge--danger');
 
-        const status  = String(data?.status || (res.ok ? 'success' : 'error')).toLowerCase();
-        if (status === 'success') {
-          const reply = data?.reply;
-          if (reply !== undefined && reply !== null && String(reply).trim() !== '') {
-            // [CHANGED] render markdown agar konsisten
-            appendMessage({ role: 'assistant', text: String(reply) });
-            scrollToBottom?.();
-          } else {
-            toast('Balasan kosong dari LLM.', 'warning');
-          }
+    // Toggle tombol
+    const show = (btn, yes) => btn && btn.classList.toggle('hidden', !yes);
+    const dis  = (btn, yes) => btn && (btn.disabled = !!yes);
+
+    if (status === 'connected') {
+      show(el.btnConnect, false);
+      show(el.btnDisconnect, true);
+      show(el.btnReconnect, true);
+      dis(el.btnDisconnect, false); dis(el.btnReconnect, false);
+    } else if (status === 'connecting') {
+      show(el.btnConnect, true);
+      show(el.btnDisconnect, false);
+      show(el.btnReconnect, false);
+      dis(el.btnConnect, true);
+    } else { // disconnected/error/unknown
+      show(el.btnConnect, true);
+      show(el.btnDisconnect, false);
+      show(el.btnReconnect, false);
+      dis(el.btnConnect, false);
+    }
+  };
+
+  // Dispatch event agar modul MCP (mcp_control.js) bisa menangkap aksi pengguna
+  el.btnConnect    && el.btnConnect.addEventListener('click', () => document.dispatchEvent(new CustomEvent('ui:mcp-connect-click')));
+  el.btnDisconnect && el.btnDisconnect.addEventListener('click', () => document.dispatchEvent(new CustomEvent('ui:mcp-disconnect-click')));
+  el.btnReconnect  && el.btnReconnect.addEventListener('click', () => document.dispatchEvent(new CustomEvent('ui:mcp-reconnect-click')));
+
+  /* =============================
+   *  Form KAK (upload + polling status)
+   *  - Struktur logika dipertahankan
+   * ============================= */
+  el.formKak && el.formKak.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(el.formKak);
+    el.modalKak?.classList.add('hidden');
+
+    toast('Upload KAK/TOR diterima, menunggu job_id…', 'warning', 3000);
+
+    try {
+      const res = await fetch('/upload-kak/', { method: 'POST', body: formData });
+      const ct = res.headers.get('content-type') || '';
+
+      if (!ct.includes('application/json')) {
+        const t = await res.text();
+        throw new Error(`Expected JSON, got:\n${t}`);
+      }
+
+      const data = await res.json();
+
+      if (res.status === 202) {
+        if (data.message) toast(data.message, 'ok', 2500);
+        if (data.job_id && data.status_url) {
+          pollStatus(data.job_id, data.status_url); // polling status ingestion
         } else {
-          const msg = data?.message || raw || res.statusText || 'Terjadi kesalahan.';
-          toast(msg, mapStatusToToastType(status));
+          toast('Tidak ada job_id/status_url pada respons.', 'error', 4000);
         }
-      } catch (err) {
-        setTyping(false);
-        toast("Gagal terhubung ke server: " + (err?.message || err), "error");
-        appendMessage({ role: 'assistant', text: 'Connection error: ' + (err?.message || err) });
-      } finally {
-        form.reset();
+      } else {
+        throw new Error(data?.error || res.statusText);
       }
-    });
 
-    /* ==========================================================================
-       POLLING STATUS (KAK) — tampilkan summary saat success
-       ========================================================================== */
-    // [NOTE] Implementasi asli Anda dipertahankan; pastikan saat success → pakai appendAssistantSummary(data.summary)
-    async function pollStatus(jobId, statusUrl) {
-      let stopped = false;
-      const maxWaitMs = 1000 * 60 * 10; // 10 menit
-      const startedAt = Date.now();
+    } catch (err) {
+      const msg = err?.message || String(err);
+      toast('Upload KAK gagal: ' + msg, 'error', 5000);
+    } finally {
+      el.formKak.reset();
+    }
+  });
 
+  /* =============================
+   *  Form Product (contoh serupa)
+   * ============================= */
+  el.formProduct && el.formProduct.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+
+    setTyping(true);
+    try {
+      const res = await fetch(form.action || '/upload-product', { method: 'POST', body: fd });
+      let data = null, raw = '';
+      try { data = await res.json(); } catch { raw = await res.text().catch(()=>''); }
+
+      setTyping(false);
+
+      const status  = String(data?.status || (res.ok ? 'success' : 'error')).toLowerCase();
+      if (status === 'success') {
+        const reply = data?.reply;
+        if (reply !== undefined && reply !== null && String(reply).trim() !== '') {
+          appendMessage({ role: 'assistant', text: String(reply) });
+          scrollToBottom();
+        } else {
+          toast('Balasan kosong dari LLM.', 'warning');
+        }
+      } else {
+        const msg = data?.message || raw || res.statusText || 'Terjadi kesalahan.';
+        toast(msg, mapStatusToToastType(status));
+      }
+    } catch (err) {
+      setTyping(false);
+      toast('Gagal terhubung ke server: ' + (err?.message || err), 'error');
+      appendMessage({ role: 'assistant', text: 'Connection error: ' + (err?.message || err) });
+    } finally {
+      form.reset();
+    }
+  });
+
+  /* =============================
+  *  Polling status ingestion (KAK)
+  *  - Saat success/skipped, tampilkan summary (markdown + heading otomatis)
+  *  - Backoff & 429-aware
+  * ============================= */
+  async function pollStatus(jobId, statusUrl) {
+    let attempt = 0;
+    let stopped = false;
+
+    // Status yang dianggap masih berjalan → lanjut polling
+    const ACTIVE_STATUSES = new Set([
+      'pending', 'processing', 'running', 'queued', 'in_progress', 'tersimpan'
+    ]);
+
+    // Status final yang dianggap OK
+    const OK_STATUSES = new Set(['success', 'skipped']);
+
+    const maxWaitMs = 1000 * 60 * 10; // 10 menit
+    const startedAt = Date.now();
+
+    try {
       while (!stopped) {
+        // hard timeout
         if (Date.now() - startedAt > maxWaitMs) {
+          setTyping(false);
           toast('Polling timeout, coba lagi.', 'warning');
           break;
         }
 
+        let res;
         try {
-          const res = await fetch(`${statusUrl}?job_id=${encodeURIComponent(jobId)}`);
-          let data = null, raw = '';
-          try { data = await res.json(); } catch { raw = await res.text().catch(()=>''); }
-
-          const s = String(data?.status || (res.ok ? 'processing' : 'error')).toLowerCase();
-          if (s === 'processing' || s === 'pending') {
-            setTyping(true);
-            await new Promise(r => setTimeout(r, 1500));
-            continue;
-          }
-
+          res = await fetch(statusUrl);
+        } catch (netErr) {
           setTyping(false);
-
-          if (s === 'success') {
-            toast(data?.message || 'Ingestion selesai.', 'ok');
-            if (data?.summary) {
-              // [CHANGED] Gunakan API baru: heading otomatis + markdown + enhancer
-              window.UI.appendAssistantSummary(String(data.summary));
-            }
-            stopped = true;
-            break;
-          }
-
-          // error/warning
-          const msg = data?.message || raw || res.statusText || 'Terjadi kesalahan saat memeriksa status.';
-          toast(msg, mapStatusToToastType(s));
-          stopped = true;
-        } catch (err) {
-          setTyping(false);
-          toast("Gagal polling status: " + (err?.message || err), "error");
-          stopped = true;
+          toast('Gagal polling status: ' + (netErr?.message || netErr), 'error');
+          break;
         }
+
+        // Penanganan 429 (rate limit) dengan Retry-After jika ada
+        if (res.status === 429) {
+          const retryAfter = Number(res.headers.get('retry-after')) || 3;
+          // setTyping(true);
+          await new Promise(r => setTimeout(r, retryAfter * 1000));
+          attempt++; // naikkan attempt agar backoff jalan setelah 429
+          continue;
+        }
+
+        let data = null, raw = '';
+        try { data = await res.json(); } catch { raw = await res.text().catch(()=>''); }
+
+        const sRaw = data?.status || (res.ok ? 'processing' : 'error');
+        const s = String(sRaw).toLowerCase();
+
+        // 1) Masih berjalan? lanjut polling + backoff
+        if (ACTIVE_STATUSES.has(s)) {
+          // setTyping(true);
+          const delay = Math.min(5000 * Math.pow(1.4, attempt++), 120000); // 5s → 120s
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+
+        // 2) Selesai sukses atau di-skip (final)
+        setTyping(false);
+        if (OK_STATUSES.has(s)) {
+          toast(
+            data?.message ||
+            (s === 'skipped' ? 'File sudah pernah diingest, dilewati.' : 'Ingestion selesai.'),
+            'ok'
+          );
+
+          // summary diprioritaskan dari root (proxy sudah normalisasi), fallback ke result.summary
+          const summary = data?.summary ?? data?.result?.summary;
+          if (summary) {
+            window.UI.appendAssistantSummary(String(summary));
+          }
+          stopped = true;
+          break;
+        }
+
+        // 3) Error / status lain → tampilkan pesan lalu berhenti
+        const msg = data?.message || raw || res.statusText || 'Terjadi kesalahan saat memeriksa status.';
+        toast(msg, mapStatusToToastType(s));
+        stopped = true;
+        break;
       }
+    } finally {
+      // safety: pastikan indikator mati saat keluar loop karena alasan apapun
+      setTyping(false);
     }
+  }
 
-    /* ==========================================================================
-       UTIL LAIN
-       ========================================================================== */
-    const mapStatusToToastType = (s) => {
-      switch (s) {
-        case 'ok':
-        case 'success': return 'ok';
-        case 'warning':
-        case 'retry':
-        case 'pending': return 'warning';
-        default: return 'error';
+
+  /* =============================
+   *  Mapping status → tipe toast
+   *  - Diekspos ke window untuk dipakai modul lain (mcp_control.js)
+   * ============================= */
+  const mapStatusToToastType = (s) => {
+    switch (s) {
+      case 'ok':
+      case 'success': return 'ok';
+      case 'warning':
+      case 'retry':
+      case 'pending': return 'warning';
+      default: return 'error';
+    }
+  };
+  window.mapStatusToToastType = mapStatusToToastType;
+
+  /* =============================
+   *  Public UI API (akses lintas modul)
+   * ============================= */
+  window.UI = {
+    // Render markdown asisten; jika ada pending bubble, isi ke sana agar tidak duplikatif
+    appendAssistantMarkdown(markdown, meta = '') {
+      const html = renderMarkdown(String(markdown || ''));
+      if (pendingAssistant && pendingAssistant.contentEl && document.body.contains(pendingAssistant.el)) {
+        pendingAssistant.contentEl.innerHTML = html;
+        enhanceRendered(pendingAssistant.contentEl);
+      } else {
+        appendMessage({ role: 'assistant', html, meta });
       }
-    };
+      if (typeof resetAssistantChunk === 'function') resetAssistantChunk();
+      pendingAssistant = null;
+    },
 
-    const setTypingIndicatorFor = async (p) => {
+    // Render summary dengan heading otomatis (promoteSectionHeadings)
+    appendAssistantSummary(summaryText, meta = '') {
+      appendMessage({ role: 'assistant', html: renderMarkdown(String(summaryText || ''), { promoteHeadings: true }), meta });
+      if (typeof resetAssistantChunk === 'function') resetAssistantChunk();
+    },
+
+    // Placeholder untuk streaming chunk; sesuaikan bila menggunakan SSE/WebSocket
+    appendAssistantChunk(chunk) {
+      appendMessage({ role: 'assistant', text: String(chunk || '') });
+    },
+
+    // Render bubble user + aktifkan pending + typing indicator
+    appendUserMarkdown(markdown, meta = '') {
+      appendMessage({ role: 'user', html: renderMarkdown(String(markdown || '')), meta });
+      pendingAssistant = ensurePendingAssistant();
       setTyping(true);
-      try { return await p; }
-      finally { setTyping(false); }
-    };
+    },
 
-    /* ==========================================================================
-       PUBLIC UI API
-       ========================================================================== */
-    window.UI = {
-      // kirim markdown generik
-      appendAssistantMarkdown(markdown, meta = '') {
-        appendMessage({ role: 'assistant', html: renderMarkdown(String(markdown || '')), meta });
-        if (typeof resetAssistantChunk === 'function') resetAssistantChunk();
-      },
+    setTyping,
+    setMCPStatus,
+    toast,
 
-      // [ADDED] summary: heading otomatis + markdown + enhancer
-      appendAssistantSummary(summaryText, meta = '') {
-        appendMessage({ role: 'assistant', html: renderMarkdown(String(summaryText || ''), { promoteHeadings: true }), meta });
-        if (typeof resetAssistantChunk === 'function') resetAssistantChunk();
-      },
+    clearInput() { if (!el.chatInput) return; el.chatInput.value = ''; autoGrow(el.chatInput); },
+    focusInput() { el.chatInput?.focus(); },
 
-      // potongan streaming (tetap sama)
-      appendAssistantChunk(chunk) {
-        // [REMOVED] implementasi lama duplikatif (jika ada). Pertahankan versi yang konsisten di project Anda.
-        // Placeholder—isi sesuai mekanisme streaming Anda:
-        appendMessage({ role: 'assistant', text: String(chunk || '') });
-      },
-
-      appendUserMarkdown(markdown, meta = '') {
-        appendMessage({ role: 'user', html: renderMarkdown(String(markdown || '')), meta });
-      },
-
-      setTyping, setMCPStatus, toast,
-
-      clearInput() { if (!el.chatInput) return; el.chatInput.value = ''; autoGrow(el.chatInput); },
-      focusInput() { el.chatInput?.focus(); },
-
-      clearAttachments() {
-        if (!el.fileInput) return;
-        el.fileInput.value = '';
-        if (el.attachmentPreview) {
-          el.attachmentPreview.innerHTML = '';
-          el.attachmentPreview.classList.add('hidden');
-        }
-      },
-
-      get els() { return { ...el }; },
-    };
-
-    /* ==========================================================================
-       INITIAL UI STATE
-       ========================================================================== */
-    showEmptyState();
-
-    /* ==========================================================================
-       FORM CHAT (contoh minimal)
-       ========================================================================== */
-    el.chatForm && el.chatForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const text = el.chatInput?.value?.trim();
-      if (!text) return;
-
-      appendMessage({ role: 'user', text });
-      el.chatInput.value = '';
-      autoGrow(el.chatInput);
-
-      // contoh post
-      try {
-        const res = await fetch('/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
-        const data = await res.json().catch(() => ({}));
-        if (data?.reply) {
-          appendMessage({ role: 'assistant', text: String(data.reply) });
-        } else if (data?.summary) {
-          // [CHANGED] jika backend balas ringkasan → gunakan summary renderer
-          window.UI.appendAssistantSummary(String(data.summary));
-        } else {
-          toast('Tidak ada balasan dari server.', 'warning');
-        }
-      } catch (err) {
-        toast('Gagal mengirim pesan: ' + (err?.message || err), 'error');
+    // Opsi pembersihan lampiran bila dipakai di masa depan
+    clearAttachments() {
+      if (!el.fileInput) return;
+      el.fileInput.value = '';
+      if (el.attachmentPreview) {
+        el.attachmentPreview.innerHTML = '';
+        el.attachmentPreview.classList.add('hidden');
       }
-    });
+    },
 
-  })();
+    get els() { return { ...el }; },
+  };
+
+  /* =============================
+   *  State awal halaman
+   * ============================= */
+  showEmptyState();
+
+  /* =============================
+   *  Form chat
+   *  - Submit via Enter
+   *  - Newline via Shift+Enter
+   * ============================= */
+  el.chatForm && el.chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = el.chatInput?.value?.trim();
+    if (!text) return;
+
+    appendMessage({ role: 'user', text });
+    setTyping(true);
+
+    el.chatInput.value = '';
+    autoGrow(el.chatInput);
+
+    try {
+      const res = await fetch('/chat/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (data?.reply) {
+        window.UI.appendAssistantMarkdown(String(data.reply));
+      } else if (data?.summary) {
+        window.UI.appendAssistantSummary(String(data.summary));
+      } else {
+        toast('Tidak ada balasan dari server.', 'warning');
+      }
+      setTyping(false);
+    } catch (err) {
+      toast('Gagal mengirim pesan: ' + (err?.message || err), 'error');
+      setTyping(false);
+    } finally {
+      scrollToBottom();
+    }
+  });
+
+  // Enter=submit, Shift+Enter=newline pada textarea
+  el.chatInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) return; // izinkan newline
+      e.preventDefault();
+      el.chatForm?.requestSubmit();
+    }
+  });
 });

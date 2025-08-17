@@ -127,6 +127,18 @@ async def proxy_check_status(job_id: str):
     summary = result.get("summary")
     summary_file = result.get("summary_file")
 
+    # Normalisasi status ke domain frontend
+    if status in {"running", "in_progress", "processing", "pending", "tersimpan"}:
+        status = "processing"
+    elif status in {"failure", "failed", "error"}:
+        status = "error"
+    elif status in {"skipped"}:
+        # biarkan 'skipped' agar frontend bisa treat sebagai sukses-bersyarat
+        status = "skipped"
+    else:
+        # biarkan status lain apa adanya (mis. 'success')
+        pass
+
     return jsonify(
         {
             "status": status,

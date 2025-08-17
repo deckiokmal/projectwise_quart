@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from projectwise.utils.logger import get_logger
-from quart import Blueprint, render_template
+from quart import Blueprint, render_template, current_app, jsonify
 
 
 logger = get_logger(__name__)
@@ -31,3 +31,9 @@ async def proposal() -> any:  # type: ignore
 async def analysis() -> any:  # type: ignore
     """Render the analysis tools page."""
     return await render_template("analysis.html")
+
+
+@main_bp.get("/healt/memory")
+async def memory_health():
+    ltm = current_app.extensions["long_term_memory"]
+    return jsonify(ltm.health()), 200
