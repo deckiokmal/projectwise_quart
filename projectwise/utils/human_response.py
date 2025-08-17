@@ -8,7 +8,7 @@ def make_response(status: str, message: str, http_status: int = 500):
     """Buat response JSON untuk Humanis Feedback user.
 
     Args:
-        status (str): success | failed | error
+        status (str): success | warning | error
         message (str): pesan humanis untuk user.
         http_status (int, optional): HTTP status code. Defaults to 500.
 
