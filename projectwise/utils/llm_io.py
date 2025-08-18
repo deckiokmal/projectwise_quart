@@ -6,8 +6,12 @@ from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
 from jsonschema import Draft202012Validator
 
+from .logger import get_logger
 from projectwise.services.memory.long_term_memory import Mem0Manager
 from projectwise.services.memory.short_term_memory import ShortTermMemory
+
+
+logger = get_logger(__name__)
 
 
 def short_str(obj: Any, n: int = 400) -> str:
@@ -413,12 +417,15 @@ async def build_context_blocks_memory(
     prompt_instruction: str = "",
 ) -> str:
     # STM
-    stm_block = await short_term.get_history(user_id, limit=max_history)
+    stm_block = await short_term.get_history(user_id=user_id, limit=max_history)
     stm_block = stm_block or "[Tidak ada riwayat percakapan]"
 
     # LTM (relevansi terhadap user_message)
-    ltm_results = await long_term.get_memories(user_message, user_id=user_id)
+    ltm_results = await long_term.get_memories(
+        query=user_message, user_id=user_id, limit=max_history
+    )
     if not ltm_results:
+        logger.info("memory LTM tidak ada.")
         # balas ke UI dengan pesan manusiawi (bukan [object Object])
         system_prompt = (
             prompt_instruction

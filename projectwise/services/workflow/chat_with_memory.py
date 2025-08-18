@@ -131,7 +131,7 @@ class ChatWithMemory:
             user_id=user_id,
             user_message=user_message,
             max_history=self.max_history,
-            prompt_instruction=PROMPT_WAR_ROOM(),
+            # prompt_instruction=PROMPT_WAR_ROOM(),
         )
 
         messages: List[Dict[str, Any]] = [
@@ -167,8 +167,8 @@ class ChatWithMemory:
             logger.exception("[war_room] gagal simpan ke ShortTermMemory")
 
         try:
-            convo = messages + [self._shape("assistant", assistant_reply)]
-            await self.long_term.add_conversation(convo, user_id=user_id)
+            # convo = messages + [self._shape("assistant", assistant_reply)]
+            await self.long_term.add_memory(user_message, user_id=user_id)
         except Exception:
             logger.exception("[war_room] gagal simpan ke LongTermMemory")
 

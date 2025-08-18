@@ -81,6 +81,7 @@ class ShortTermMemory:
                 logger.error("Gagal simpan memory untuk user %s: %s", user_id, ex)
                 raise
 
+    # TODO: perlu dibenerin lagi karna tidak kirim user message sebagai query.
     async def get_history(self, user_id: str, limit: Optional[int] = None) -> str:
         """Ambil history pesan dan kembalikan sebagai markdown list terpotong token."""
         limit = limit or self.max_history

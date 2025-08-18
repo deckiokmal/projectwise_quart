@@ -28,12 +28,11 @@ def _is_connect_error(exc: BaseException) -> bool:
 
 # helper item untuk antrian tulis
 class _WriteItem:
-    __slots__ = ("text", "user_id", "metadata", "agent_id")
-    def __init__(self, text: str, user_id: str, metadata: Optional[Dict[str, Any]], agent_id: str):
+    __slots__ = ("text", "user_id", "metadata")
+    def __init__(self, text: str, user_id: str, metadata: Optional[Dict[str, Any]]):
         self.text = text
         self.user_id = user_id
         self.metadata = metadata
-        self.agent_id = agent_id
 
 
 def _extract_text_from_mem_item(item: Dict[str, Any]) -> Optional[str]:
@@ -178,7 +177,7 @@ class Mem0Manager:
                 item = self._pending[0]
                 try:
                     await self._add_direct(
-                        item.text, user_id=item.user_id, metadata=item.metadata, agent_id=item.agent_id
+                        item.text, user_id=item.user_id, metadata=item.metadata
                     )
                     flushed += 1
                     self._pending.popleft()
@@ -207,13 +206,12 @@ class Mem0Manager:
 
     # ADD: panggilan add langsung ke backend aktif (NoOp atau Mem0)
     async def _add_direct(
-        self, text: str, *, user_id: str, metadata: Optional[Dict[str, Any]], agent_id: str
+        self, text: str, *, user_id: str, metadata: Optional[Dict[str, Any]]
     ) -> None:
-        role = (metadata or {}).get("role") or "user"
+        role = "user"
         await self.memory.add(
             messages=[{"role": role, "content": text}],
             user_id=user_id,
-            agent_id=agent_id,
             metadata=metadata or {},
             infer=False,
         )
@@ -265,7 +263,6 @@ class Mem0Manager:
         *,
         user_id: str = "default",
         metadata: Optional[Dict[str, Any]] = None,
-        agent_id: str = "projectwise",
     ) -> Tuple[bool, Optional[str]]:
         """
         Tambahkan satu potong memori teks.
@@ -282,11 +279,11 @@ class Mem0Manager:
                     # queue penuh → tolak halus
                     logger.warning("Queue memori penuh; menolak 1 item baru.")
                     return False, "degraded:queue_full"
-                self._pending.append(_WriteItem(text, user_id, metadata, agent_id))  # ADD
+                self._pending.append(_WriteItem(text, user_id, metadata))  # ADD
                 return True, "degraded:queued"
 
             # Normal path (backend siap)
-            await self._add_direct(text, user_id=user_id, metadata=metadata, agent_id=agent_id)
+            await self._add_direct(text, user_id=user_id, metadata=metadata)
             # sukses → reset failure count
             self._consec_failures = 0
             return True, None
@@ -296,7 +293,7 @@ class Mem0Manager:
             if _is_connect_error(e):
                 await self._set_degraded(e)
                 if len(self._pending) < self._max_pending:
-                    self._pending.append(_WriteItem(text, user_id, metadata, agent_id))
+                    self._pending.append(_WriteItem(text, user_id, metadata))
                     logger.warning("Gagal konek; item di-queue. Total queue=%d", len(self._pending))
                     return True, "degraded:queued"
                 logger.warning("Queue memori penuh saat koneksi gagal.")
@@ -312,7 +309,7 @@ class Mem0Manager:
     ) -> List[str]:
         await self._ensure_ready_or_retry()
         try:
-            result = await self.memory.search(query=query, user_id=user_id, limit=limit)
+            result = await self.memory.search(query, user_id=user_id, limit=limit)
             raw = result.get("results", result) or []
             out: List[str] = []
             for item in raw:
