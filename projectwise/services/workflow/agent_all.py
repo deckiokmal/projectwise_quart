@@ -7,7 +7,9 @@ import logging
 import re
 from copy import deepcopy
 from json import JSONDecodeError
-from typing import Any, Dict, List, Tuple, Optional, Protocol
+from typing import Any, Dict, List, Tuple, Optional
+
+from projectwise.services.mcp.adapter import ToolExecutor, MCPToolAdapter
 
 # Lib LLM
 from openai import AsyncOpenAI, BadRequestError, APIConnectionError
@@ -272,45 +274,45 @@ async def build_context_blocks_memory(
 
 # ============================================================
 # Kontrak eksekutor tool
-# ============================================================
-class ToolExecutor(Protocol):
-    async def call_tool(self, name: str, args: Dict[str, Any]) -> Any: ...
-    async def get_tools(self) -> List[Dict[str, Any]]: ...
+# # ============================================================
+# class ToolExecutor(Protocol):
+#     async def call_tool(self, name: str, args: Dict[str, Any]) -> Any: ...
+#     async def get_tools(self) -> List[Dict[str, Any]]: ...
 
 
-# ============================================================
-# MCP Adapter — jembatan ke MCP client di app.extensions
-# ============================================================
-class MCPToolAdapter:
-    """
-    Adapter sederhana untuk mengeksekusi MCP tool melalui instance di app.extensions.
-    - Tidak auto-connect; hormati /mcp/connect
-    """
+# # ============================================================
+# # MCP Adapter — jembatan ke MCP client di app.extensions
+# # ============================================================
+# class MCPToolAdapter:
+#     """
+#     Adapter sederhana untuk mengeksekusi MCP tool melalui instance di app.extensions.
+#     - Tidak auto-connect; hormati /mcp/connect
+#     """
 
-    def __init__(self, app: Quart) -> None:  # type: ignore
-        self.app = app
+#     def __init__(self, app: Quart) -> None:  # type: ignore
+#         self.app = app
 
-    async def _acquire_mcp(self):
-        if "mcp" not in self.app.extensions or "mcp_status" not in self.app.extensions:
-            raise RuntimeError("MCP belum diinisialisasi di app.extensions.")
-        client = self.app.extensions.get("mcp")
-        status: dict = self.app.extensions["mcp_status"]
-        if client is None or not status.get("connected"):
-            raise RuntimeError(
-                "MCP belum terhubung. Silakan klik 'Connect' atau panggil endpoint /mcp/connect lebih dulu."
-            )
-        return client
+#     async def _acquire_mcp(self):
+#         if "mcp" not in self.app.extensions or "mcp_status" not in self.app.extensions:
+#             raise RuntimeError("MCP belum diinisialisasi di app.extensions.")
+#         client = self.app.extensions.get("mcp")
+#         status: dict = self.app.extensions["mcp_status"]
+#         if client is None or not status.get("connected"):
+#             raise RuntimeError(
+#                 "MCP belum terhubung. Silakan klik 'Connect' atau panggil endpoint /mcp/connect lebih dulu."
+#             )
+#         return client
 
-    async def call_tool(self, name: str, args: Dict[str, Any]) -> Any:
-        client = await self._acquire_mcp()
-        logger.info("Menjalankan MCP tool: %s | args=%s", name, truncate_args(args))
-        return await client.call_tool(name, args)
+#     async def call_tool(self, name: str, args: Dict[str, Any]) -> Any:
+#         client = await self._acquire_mcp()
+#         logger.info("Menjalankan MCP tool: %s | args=%s", name, truncate_args(args))
+#         return await client.call_tool(name, args)
 
-    async def get_tools(self) -> List[Dict[str, Any]]:
-        client = await self._acquire_mcp()
-        tools: List[Dict[str, Any]] = getattr(client, "tool_cache", []) or []
-        logger.info("Daftar MCP tools terdeteksi: %d item.", len(tools))
-        return tools
+#     async def get_tools(self) -> List[Dict[str, Any]]:
+#         client = await self._acquire_mcp()
+#         tools: List[Dict[str, Any]] = getattr(client, "tool_cache", []) or []
+#         logger.info("Daftar MCP tools terdeteksi: %d item.", len(tools))
+#         return tools
 
 
 # ============================================================

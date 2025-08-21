@@ -8,7 +8,6 @@ from projectwise.utils.logger import get_logger
 from projectwise.services.memory.long_term_memory import Mem0Manager
 from projectwise.services.memory.short_term_memory import ShortTermMemory
 from projectwise.config import ServiceConfigs
-from projectwise.services.workflow.prompt_instruction import PROMPT_WAR_ROOM
 from projectwise.utils.llm_io import build_context_blocks_memory
 
 
@@ -80,27 +79,6 @@ class ChatWithMemory:
     @staticmethod
     def _shape(role: str, content: str) -> Dict[str, Any]:
         return {"role": role, "content": content}
-
-    # async def _build_context_blocks(
-    #     self, user_id: str, user_message: str
-    # ) -> Dict[str, str]:
-    #     # STM
-    #     stm_block = await self.short_term.get_history(user_id, limit=self.max_history)
-    #     stm_block = stm_block or "[Tidak ada riwayat percakapan]"
-
-    #     # LTM (relevansi terhadap user_message)
-    #     ltm_results = await self.long_term.get_memories(user_message, user_id=user_id)
-    #     if not ltm_results:
-    #         # balas ke UI dengan pesan manusiawi (bukan [object Object])
-    #         return {"stm_block": stm_block, "ltm_block": "[Gagal memproses LTM]"}
-
-    #     ltm_block = (
-    #         "\n".join(f"- {m}" for m in ltm_results)
-    #         if ltm_results
-    #         else "[Tidak ada memori relevan]"
-    #     )
-
-    #     return {"stm_block": stm_block, "ltm_block": ltm_block}
 
     # ---------- API utama ----------
     async def chat(

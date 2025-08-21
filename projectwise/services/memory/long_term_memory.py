@@ -20,15 +20,18 @@ logger = get_logger(__name__)
 def _is_connect_error(exc: BaseException) -> bool:
     msg = str(exc)
     # Pattern yang muncul di Windows + httpx/qdrant
-    return ("actively refused" in msg.lower()
-            or "connecterror" in msg.lower()
-            or "failed to establish a new connection" in msg.lower()
-            or "connection refused" in msg.lower())
+    return (
+        "actively refused" in msg.lower()
+        or "connecterror" in msg.lower()
+        or "failed to establish a new connection" in msg.lower()
+        or "connection refused" in msg.lower()
+    )
 
 
 # helper item untuk antrian tulis
 class _WriteItem:
     __slots__ = ("text", "user_id", "metadata")
+
     def __init__(self, text: str, user_id: str, metadata: Optional[Dict[str, Any]]):
         self.text = text
         self.user_id = user_id
@@ -53,28 +56,29 @@ def _extract_text_from_mem_item(item: Dict[str, Any]) -> Optional[str]:
 class Mem0Manager:
     """Wrapper asinkron untuk mem0 AsyncMemory agar lebih modular & defensif."""
 
-
     def __init__(self, service_configs, config: Optional[Dict[str, Any]] = None):
         self._service_configs = service_configs
         self._config = config or self._default_config()
         self._memory: Optional[AsyncMemory] = None
         self._init_lock = asyncio.Lock()
-        
+
         # ADD: status & resilience state
         self._ready: bool = False
         self._degraded: bool = False
         self._last_error: Optional[str] = None
         self._init_attempts: int = 0
-        
+
         # ADD: circuit breaker & fail counters
         self._consec_failures: int = 0
-        self._cb_open_until: float = 0.0          # epoch detik
-        self._cb_fail_threshold: int = 2          # CHANGE: batas buka circuit setelah 2 gagal berturut
-        self._cb_open_seconds: int = 10           # CHANGE: selama 10 detik jangan retry
+        self._cb_open_until: float = 0.0  # epoch detik
+        self._cb_fail_threshold: int = (
+            2  # CHANGE: batas buka circuit setelah 2 gagal berturut
+        )
+        self._cb_open_seconds: int = 10  # CHANGE: selama 10 detik jangan retry
 
         # ADD: write-queue saat degraded
         self._pending: Deque[_WriteItem] = deque()
-        self._max_pending: int = 500              # CHANGE: batasi memori
+        self._max_pending: int = 500  # CHANGE: batasi memori
 
         # ADD: guard agar flush tidak double
         self._flush_lock = asyncio.Lock()
@@ -85,6 +89,9 @@ class Mem0Manager:
             "vector_store": {
                 "provider": "qdrant",
                 "config": {
+                    "collection_name": getattr(
+                        self._service_configs, "collection_name", "mem0"
+                    ),
                     "host": getattr(self._service_configs, "qdrant_host", "localhost"),
                     "port": getattr(self._service_configs, "qdrant_port", 6333),
                 },
@@ -92,15 +99,15 @@ class Mem0Manager:
             "llm": {
                 "provider": "openai",
                 "config": {
-                    "api_key": self._service_configs.openai_api_key,
+                    "api_key": self._service_configs.llm_api_key,
                     "model": self._service_configs.llm_model,
                 },
             },
             "embedder": {
                 "provider": "openai",
                 "config": {
-                    "api_key": self._service_configs.openai_api_key,
-                    "model": self._service_configs.embed_model,
+                    "api_key": self._service_configs.llm_api_key,
+                    "model": self._service_configs.embedding_model,
                 },
             },
             "version": "v1.1",
@@ -125,7 +132,9 @@ class Mem0Manager:
                 return
 
             self._init_attempts += 1
-            logger.info("Inisialisasi Mem0 AsyncMemory... (attempt=%s)", self._init_attempts)
+            logger.info(
+                "Inisialisasi Mem0 AsyncMemory... (attempt=%s)", self._init_attempts
+            )
             try:
                 self._memory = await asyncio.wait_for(
                     AsyncMemory.from_config(self._config), timeout=10
@@ -133,21 +142,22 @@ class Mem0Manager:
                 self._ready = True
                 self._degraded = False
                 self._last_error = None
-                self._consec_failures = 0           # ADD: reset
+                self._consec_failures = 0  # ADD: reset
                 logger.info("Mem0 AsyncMemory siap digunakan")
                 # ADD: kalau ada pending, flush di background
                 self._schedule_flush()
             except Exception as e:
-                self._memory = NoOpAsyncMemory() # type: ignore
+                self._memory = NoOpAsyncMemory()  # type: ignore
                 self._ready = False
                 self._degraded = True
                 self._last_error = str(e)
-                self._consec_failures += 1          # ADD
+                self._consec_failures += 1  # ADD
                 # OPEN circuit bila melewati ambang
                 if self._consec_failures >= self._cb_fail_threshold:
                     self._cb_open_until = time.time() + self._cb_open_seconds
                 logger.warning(
-                    "Mem0 in DEGRADE mode (vector store unavailable): %s", self._last_error
+                    "Mem0 in DEGRADE mode (vector store unavailable): %s",
+                    self._last_error,
                 )
 
     # ADD: schedule flush pending jika belum berjalan
@@ -171,7 +181,9 @@ class Mem0Manager:
         async with self._flush_lock:
             if not self._pending:
                 return
-            logger.info("Mulai flush %d memori tertunda ke vector store...", len(self._pending))
+            logger.info(
+                "Mulai flush %d memori tertunda ke vector store...", len(self._pending)
+            )
             flushed = 0
             while self._pending:
                 item = self._pending[0]
@@ -184,17 +196,21 @@ class Mem0Manager:
                 except Exception as e:
                     # jika connect error lagi, hentikan flush & degrade kembali
                     if _is_connect_error(e):
-                        logger.warning("Flush terhenti (koneksi gagal), kembali ke degraded.")
+                        logger.warning(
+                            "Flush terhenti (koneksi gagal), kembali ke degraded."
+                        )
                         await self._set_degraded(e)
                         break
                     # error lain: log & buang item ini (hindari loop buntu)
                     logger.error("Gagal flush 1 item (drop): %s", e)
                     self._pending.popleft()
-            logger.info("Flush selesai. Berhasil=%d; Sisa queue=%d", flushed, len(self._pending))
+            logger.info(
+                "Flush selesai. Berhasil=%d; Sisa queue=%d", flushed, len(self._pending)
+            )
 
     # ADD: set state degraded + circuit semi-open
     async def _set_degraded(self, exc: BaseException) -> None:
-        self._memory = NoOpAsyncMemory() # type: ignore
+        self._memory = NoOpAsyncMemory()  # type: ignore
         self._ready = False
         self._degraded = True
         self._last_error = str(exc)
@@ -217,10 +233,12 @@ class Mem0Manager:
         )
 
     @property
-    def ready(self) -> bool: return self._ready
+    def ready(self) -> bool:
+        return self._ready
 
     @property
-    def degraded(self) -> bool: return self._degraded
+    def degraded(self) -> bool:
+        return self._degraded
 
     def health(self) -> Dict[str, Any]:
         # UPDATE: tambah metrik baru
@@ -229,9 +247,9 @@ class Mem0Manager:
             "degraded": self._degraded,
             "init_attempts": self._init_attempts,
             "last_error": self._last_error,
-            "consec_failures": self._consec_failures,         # ADD
-            "circuit_open_until": self._cb_open_until,        # ADD (epoch; 0 jika tertutup)
-            "pending_queue_len": len(self._pending),          # ADD
+            "consec_failures": self._consec_failures,  # ADD
+            "circuit_open_until": self._cb_open_until,  # ADD (epoch; 0 jika tertutup)
+            "pending_queue_len": len(self._pending),  # ADD
         }
 
     async def _ensure_ready_or_retry(self) -> None:
@@ -253,8 +271,7 @@ class Mem0Manager:
     @property
     def memory(self) -> AsyncMemory:
         # Selalu non-None (NoOp jika gagal)
-        return self._memory or NoOpAsyncMemory()     # type: ignore
-
+        return self._memory or NoOpAsyncMemory()  # type: ignore
 
     # ---------------- helpers ----------------
     async def add_memory(
@@ -271,7 +288,7 @@ class Mem0Manager:
         await self._ensure_ready_or_retry()
         if not isinstance(text, str) or not text.strip():
             return False, "Teks memori kosong."
-        
+
         try:
             # Jika sedang degraded → antrikan & return ok=True(queued)
             if self._degraded or not self._ready:
@@ -294,7 +311,9 @@ class Mem0Manager:
                 await self._set_degraded(e)
                 if len(self._pending) < self._max_pending:
                     self._pending.append(_WriteItem(text, user_id, metadata))
-                    logger.warning("Gagal konek; item di-queue. Total queue=%d", len(self._pending))
+                    logger.warning(
+                        "Gagal konek; item di-queue. Total queue=%d", len(self._pending)
+                    )
                     return True, "degraded:queued"
                 logger.warning("Queue memori penuh saat koneksi gagal.")
                 return False, "degraded:queue_full"
@@ -302,7 +321,6 @@ class Mem0Manager:
             # Error non-koneksi → log exception (tetap seperti sebelumnya)
             logger.exception("Gagal menambah 1 memori (non-connect error): %s", e)
             return False, str(e)
-
 
     async def get_memories(
         self, query: str, *, user_id: str = "default", limit: int = 5
@@ -313,7 +331,11 @@ class Mem0Manager:
             raw = result.get("results", result) or []
             out: List[str] = []
             for item in raw:
-                text = _extract_text_from_mem_item(item) if isinstance(item, dict) else str(item)
+                text = (
+                    _extract_text_from_mem_item(item)
+                    if isinstance(item, dict)
+                    else str(item)
+                )
                 if text:
                     out.append(text)
             return out
@@ -326,13 +348,13 @@ class Mem0Manager:
             logger.error("Gagal search memory (degraded=%s): %s", self._degraded, e)
             return []
 
-
     async def add_conversation(
         self, messages: List[Dict[str, str]], *, user_id: str = "default"
     ) -> Dict[str, Any]:
         await self._ensure_ready_or_retry()
         clean = [
-            m for m in messages
+            m
+            for m in messages
             if isinstance(m, dict)
             and isinstance(m.get("role"), str)
             and isinstance(m.get("content"), str)
@@ -343,7 +365,7 @@ class Mem0Manager:
             return {"ok": True, "saved": 0, "errors": []}
 
         saved = 0
-        queued = 0   # ADD
+        queued = 0  # ADD
         errs: List[str] = []
         for m in clean:
             ok, err = await self.add_memory(
@@ -352,13 +374,12 @@ class Mem0Manager:
             if ok and (err is None):
                 saved += 1
             elif ok and err and err.startswith("degraded:queued"):
-                queued += 1   # ADD
+                queued += 1  # ADD
             elif err:
                 errs.append(err)
 
         # UPDATE: expose queued count via error list ringan
         return {"ok": len(errs) == 0, "saved": saved, "queued": queued, "errors": errs}
-
 
     async def chat_with_memories(
         self, llm_client, *, user_message: str, user_id: str = "default"

@@ -29,8 +29,8 @@ async def init_extensions(app: Quart) -> None:
     service_configs = ServiceConfigs()
     
     # Check LLM API KEY
-    if not service_configs.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY kosong. Set di .env sebelum menjalankan aplikasi.")
+    if not service_configs.llm_api_key:
+        raise RuntimeError("LLM_API_KEY kosong. Set di .env sebelum menjalankan aplikasi.")
     
     app.extensions["service_configs"] = service_configs
     logger.info(f"ServiceConfigs loaded: MCP URL = {service_configs.mcp_server_url}")

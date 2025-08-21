@@ -43,7 +43,7 @@ async def chat_message():
     stm = app.extensions["short_term_memory"]
     ltm = app.extensions["long_term_memory"]
 
-    llm = AsyncOpenAI()
+    llm = AsyncOpenAI(api_key=service_configs.llm_api_key)
     model = service_configs.llm_model
 
     # ——— Handlers untuk tiap intent ———

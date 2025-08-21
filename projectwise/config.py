@@ -12,48 +12,99 @@ ENV_PATH = Path(BASE_DIR) / ".env"
 DB_DIR = BASE_DIR / "database"
 DB_DIR.mkdir(parents=True, exist_ok=True)
 
-# Load .env jika ada
-load_dotenv()
+# Load .env
+load_dotenv(ENV_PATH)
 
 
 class ServiceConfigs(BaseSettings):
     """Konfigurasi service eksternal (MCP, LLM, dsb)."""
+    # ====================================
+    # Model dan parameter LLM
+    # ====================================
+    llm_base_url: str = "https://dekallm.cloudeka.ai/v1"
+    llm_api_key: str = os.getenv("LLM_API_KEY", "")
+    embedding_model: str = os.getenv("EMBED_MODEL", "text-embedding-3-small")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", 0.2))
+    max_token: int = 30000  # 30.000 token untuk ringkasan - qwen25-72b
 
-    mcp_server_url: str = "http://localhost:5000/projectwise/mcp/"
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    llm_model: str = "gpt-4o-mini"
-    embed_model: str = "text-embedding-3-small"
-    llm_temperature: float = 0.2
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
-    log_retention: int = 90
-    app_env: str = "development"
-    intent_classification_threshold: float = 0.60
+    # ====================================
+    # MCP
+    # ====================================
+    mcp_server_url: str = os.getenv(
+        "MCP_SERVER_URL", "http://localhost:5000/projectwise/mcp/"
+    )
+    
+    # ====================================
+    # Agent Workflow
+    # ====================================
+    intent_classification_threshold: float = float(
+        os.getenv("INTENT_CLASSIFICATION_THRESHOLD", 0.60)
+    )
+    
+    # ====================================
+    # Database Vector Mem0ai
+    # ====================================
+    qdrant_llm_provider: str = "openai"
+    qdrant_host: str = os.getenv("QDRANT_HOST", "localhost")
+    qdrant_port: int = int(os.getenv("QDRANT_PORT", 6333))
+    vector_dim: int = int(os.getenv("VECTOR_DIM", "1536"))
+    collection_name: str = "projectwise_client"
 
-    model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8")
+    # ====================================
+    # Base config ENV
+    # ====================================
+    max_concurrent_proccess: int = int(os.getenv("MAX_CONCURRENT_PROCCESS", "8"))
+    max_cpu_workers: int = max(1, int(os.getenv("MAX_CPU_WORKERS", "4")))
+    
+    log_retention: int = int(os.getenv("LOG_RETENTION", 90))
+    app_env: str = os.getenv("APP_ENV", "development")
+    model_config = SettingsConfigDict(
+        env_file=str(ENV_PATH), env_file_encoding="utf-8", extra="ignore"
+    )
 
 
 class BaseConfig:
     """Base configuration class for Quart."""
 
+    # ====================
+    # Database Config
+    # ====================
     SQLALCHEMY_DATABASE_URI = (
         f"sqlite+aiosqlite:///{(DB_DIR / 'chat_memory.sqlite').as_posix()}"
     )
-
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # ====================
+    # App Config
+    # ====================
+    ENV = os.getenv("APP_ENV", "development")
     SECRET_KEY = os.getenv("SECRET_KEY", "change-me-secret-key")
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "quart_session")
-
     DEBUG = False
     TESTING = False
-    ENV = os.getenv("APP_ENV", "production")
 
+    # ====================
+    # Logger Config
+    # ====================
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT = os.getenv(
         "LOG_FORMAT", "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
     )
     LOG_RETENTION = int(os.getenv("LOG_RETENTION", 90))
+    LOG_MODE = os.getenv("LOG_MODE", "file")  # file | stdout | socket
+    LOG_CONSOLE = os.getenv("LOG_CONSOLE", "true").lower() == "true"
+    LOG_CONSOLE_LEVEL = os.getenv("LOG_CONSOLE_LEVEL", "") or None
+    LOG_MONTH_FORMAT = os.getenv("LOG_MONTH_FORMAT", "%Y-%m")
+    LOG_USE_UTC = os.getenv("LOG_USE_UTC", "false").lower() == "true"
+
+    LOG_SOCKET_HOST = os.getenv("LOG_SOCKET_HOST", "127.0.0.1")
+    LOG_SOCKET_PORT = int(os.getenv("LOG_SOCKET_PORT", "9020"))
+    _LOG_ROOT_DIR_RAW = os.getenv("LOG_ROOT_DIR", "").strip()
+    LOG_ROOT_DIR = Path(_LOG_ROOT_DIR_RAW).resolve() if _LOG_ROOT_DIR_RAW else None
+
+    LOG_SOCKET_HOST = os.getenv("LOG_SOCKET_HOST", "127.0.0.1")
+    LOG_SOCKET_PORT = int(os.getenv("LOG_SOCKET_PORT", "9020"))
 
     JSON_SORT_KEYS = False
     JSONIFY_PRETTYPRINT_REGULAR = False

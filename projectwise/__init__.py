@@ -37,13 +37,13 @@ async def create_app(config_object: object | None = None) -> Quart:
         app.config.from_object(get_config(env))
 
     # Inisialisasi logger global
-    logger = get_logger("quart_app")
-    logger.info(f"Starting ProjectWise app in {app.config['ENV']} mode")
+    logger = get_logger("quart.app")
+    logger.info(f"Starting ProjectWise Client app in {app.config['ENV']} mode")
 
     # Inisialisasi semua extension async (MCP, DB, dll)
     await init_extensions(app)
     logger.info("Extensions initialized successfully")
-    
+
     @app.after_serving
     async def _cleanup():
         await shutdown_extensions(app)  # <— pastikan MCP & resource lain rapi

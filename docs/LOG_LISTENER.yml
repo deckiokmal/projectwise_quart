@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  log-listener:
+    image: python:3.11-slim
+    container_name: log-listener
+    working_dir: /app
+    # Kode Anda dimount read-only; logs dipersistenkan
+    volumes:
+      - ./:/app:ro
+      - ./logs:/app/logs
+    environment:
+      # Zona waktu & root proyek agar logger menemukan .env/struktur
+      TZ: Asia/Jakarta
+      PROJECT_ROOT: /app
+
+      # Konfigurasi logger (listener menulis ke file)
+      LOG_MODE: file
+      LOG_LEVEL: INFO
+      LOG_RETENTION: "90"
+      LOG_FORMAT: "%(asctime)s %(levelname)s %(name)s: %(message)s"
+      LOG_DATEFMT: "%Y-%m-%d %H:%M:%S"
+      LOG_MONTH_FORMAT: "%Y-%m"
+      LOG_USE_UTC: "false"
+      # host:port listener — harus sama dengan yang dipakai worker
+      LOG_SOCKET_HOST: 0.0.0.0
+      LOG_SOCKET_PORT: "9020"
+      LOG_CONSOLE: "true"
+    command: ["python","-m","mcp_server.log_listener"]
+    expose:
+      - "9020"     # hanya untuk jaringan internal compose
+    ports:
+      # Opsional: buka bila ingin kirim log dari host lain
+      # - "9020:9020"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',9020),1); s.close()"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+
+  mcp-worker:
+    image: python:3.11-slim
+    # Ganti nama service jika perlu; scale via: docker compose up --scale mcp-worker=4 -d
+    working_dir: /app
+    volumes:
+      - ./:/app:ro
+    environment:
+      TZ: Asia/Jakarta
+      PROJECT_ROOT: /app
+
+      # Konfigurasi logger (worker mengirim ke listener via TCP socket)
+      LOG_MODE: socket
+      LOG_LEVEL: INFO
+      LOG_FORMAT: "%(asctime)s %(levelname)s %(name)s: %(message)s"
+      LOG_DATEFMT: "%Y-%m-%d %H:%M:%S"
+      LOG_CONSOLE: "false"            # matikan konsol di worker agar hemat I/O
+      LOG_SOCKET_HOST: log-listener   # nama service listener di jaringan compose
+      LOG_SOCKET_PORT: "9020"
+
+      # (opsional) mode UTC konsisten lintas host
+      LOG_USE_UTC: "false"
+    # Jalankan app MCP Anda (ubah sesuai entrypoint Anda)
+    # Contoh umum:
+    # command: ["python","-m","mcp_server.app"]
+    # atau jika butuh deps cepat tanpa Dockerfile (kurang ideal untuk produksi):
+    command: >
+      sh -c "pip install -r requirements.txt && python -m mcp_server.app"
+    depends_on:
+      log-listener:
+        condition: service_healthy
+    restart: unless-stopped

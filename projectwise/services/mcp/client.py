@@ -24,9 +24,9 @@ settings = ServiceConfigs()
 class MCPClient:
     def __init__(self, model: str = settings.llm_model):
         # LLM, settings
-        self.llm = AsyncOpenAI()
-        self.model = model
         self.settings = settings
+        self.llm = AsyncOpenAI(api_key=self.settings.llm_api_key)
+        self.model = model
 
         # Connection state
         self._exit_stack = AsyncExitStack()
@@ -88,9 +88,7 @@ class MCPClient:
 
             # 7) Initial tool cache
             await self._refresh_tool_cache()
-            logger.info(
-                f"Initial tools: {[f['name'] for f in self.tool_cache]}"
-            )
+            logger.info(f"Initial tools: {[f['name'] for f in self.tool_cache]}")
             return self
 
         except Exception as e:
@@ -177,7 +175,7 @@ class MCPClient:
         """
         try:
             while True:
-                await asyncio.sleep(300) # sec (5 menit)
+                await asyncio.sleep(300)  # sec (5 menit)
                 if not self.session:
                     return
                 await self.call_tool("heartbeat", {})
@@ -247,8 +245,8 @@ class MCPClient:
                 ]
             except Exception as e:
                 logger.error(f"Initial get_tools() failed: {e}", exc_info=True)
-                
-        return self.tool_cache # type: ignore
+
+        return self.tool_cache  # type: ignore
 
     # ————— MESSAGE HANDLER for notifications —————
     def _on_session_message(self, msg: Any) -> None:
