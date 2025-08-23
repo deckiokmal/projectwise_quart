@@ -2,24 +2,22 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
+from typing import Any, Awaitable, Callable, Literal, Optional, Tuple
 from pydantic import BaseModel, Field, ValidationError
-from openai import AsyncOpenAI, APIConnectionError
 
 from projectwise.utils.logger import get_logger
-from projectwise.utils.llm_io import short_str
 from projectwise.services.workflow.prompt_instruction import (
     PROMPT_WORKFLOW_INTENT,
     FEW_SHOT_INTENT,
 )
-
+from projectwise.services.llm_chain.llm_chains import LLMChains
 
 logger = get_logger(__name__)
 
 
-# =================
+# ======================================================
 # 1) Data Models
-# =================
+# ======================================================
 
 IntentLabel = Literal[
     "other",
@@ -42,122 +40,102 @@ class IntentClassification(BaseModel):
     reasoning: Optional[str] = None
 
 
-# =================
-# 2) Utilities
-# =================
+# ======================================================
+# 2) Core: Klasifikasi via Json schema chat or Responses
+# ======================================================
 
 
-def _build_messages(user_query: str) -> List[Dict[str, Any]]:
-    """
-    Susun pesan untuk Responses API dengan gaya ChatML (kompatibel dengan banyak SDK).
-    - Pertahankan few-shot dari implementasi Anda agar akurasi meningkat.
-    """
-    return [
+async def classify_intent_chat(
+    llm: LLMChains, query: str, *, timeout_sec: float = 45.0
+) -> IntentClassification:
+    messages = [
         {"role": "system", "content": PROMPT_WORKFLOW_INTENT()},
         *FEW_SHOT_INTENT(),
-        {"role": "user", "content": user_query},
+        {"role": "user", "content": query},
     ]
 
+    # 1) JSON Schema dari Pydantic → ketatkan
+    schema = llm.tighten_json_schema(IntentClassification.model_json_schema())
 
-# =================
-# 3) Core: Klasifikasi via OpenAI Responses API
-# =================
+    # 2) Panggil Chat Completions dengan schema strict
+    resp = await asyncio.wait_for(
+        llm.chat_completions_text(messages=messages, json_schema=schema),
+        timeout=timeout_sec,
+    )
+    if resp.get("status") != "success":
+        # Bisa terjadi refusal atau format-issue
+        return IntentClassification(intent="other", confidence=0.0)
 
-
-async def classify_intent_responses(
-    llm: AsyncOpenAI,
-    query: str,
-    *,
-    model: str,
-    temperature: float = 0.0,
-    top_p: float = 0.0,
-    timeout_sec: float = 45.0,
-) -> IntentClassification:
-    logger.info("[intent] start | model=%s | q=%s", model, short_str(query, 200))
-    messages = _build_messages(query)
-
-    # Prefer parse → IntentClassification
+    # 3) Parse ke Pydantic (defensif: data bisa dict/string)
+    data = resp.get("data")
     try:
-        resp = await asyncio.wait_for(
-            llm.responses.parse(
-                model=model,
-                input=messages,  # type: ignore
-                text_format=IntentClassification,
-                temperature=temperature,
-                top_p=top_p,
-            ),
-            timeout=timeout_sec,
-        )
-        parsed = getattr(resp, "output_parsed", None)
-        if isinstance(parsed, IntentClassification):
-            logger.info(
-                "[intent] parsed via responses.parse | %s %.2f",
-                parsed.intent,
-                parsed.confidence,
-            )
-            return parsed
-    except APIConnectionError:
-        logger.error("LLM APIConnectionError.")
-        human = "LLM API Connection Error. Silakan coba lagi."
-        raise RuntimeError(human)
-    except Exception:
-        logger.exception("[intent] responses.parse failed, fallback to create")
-
-    # Fallback create → parse manual
-    try:
-        resp = await asyncio.wait_for(
-            llm.responses.create(
-                model=model, input=messages, temperature=temperature, top_p=top_p # type: ignore
-            ),
-            timeout=timeout_sec,
-        )
-        # Try output_text → pydantic
-        raw = getattr(resp, "output_text", None) or ""
-        if raw.strip():
-            try:
-                return IntentClassification.model_validate_json(raw)
-            except ValidationError:
-                logger.warning("[intent] manual-parse failed: %s", short_str(raw))
-    except APIConnectionError:
-        logger.error("LLM APIConnectionError.")
-        human = "LLM API Connection Error. Silakan coba lagi."
-        raise RuntimeError(human)
-    except Exception:
-        logger.exception("[intent] responses.create failed")
-
-    logger.warning("[intent] fallback → other (0.00)")
-    return IntentClassification(intent="other", confidence=0.0)
+        if isinstance(data, dict):
+            return IntentClassification.model_validate(data)
+        elif isinstance(data, str):
+            return IntentClassification.model_validate_json(data)
+        else:
+            return IntentClassification(intent="other", confidence=0.0)
+    except ValidationError:
+        # Jika schema mismatch walau strict, amankan
+        return IntentClassification(intent="other", confidence=0.0)
 
 
 # ——— Router dengan 5 intent
 OnAny = Callable[[str, IntentClassification], Awaitable[Any]]
 
-# =================
-# 4) Controller: Best-Practice Routing dengan Threshold
-# =================
+
+# ======================================================
+# 3) Controller: Best-Practice Routing dengan Threshold
+# ======================================================
+
+
+async def classify_intent(
+    llm: LLMChains, query: str, *, timeout_sec: float = 45.0
+) -> IntentClassification:
+    # 1) Coba Chat (JSON Schema)
+    cls = await classify_intent_chat(llm, query, timeout_sec=timeout_sec)
+    if cls.intent != "other" or cls.confidence > 0:
+        return cls
+
+    # 2) Fallback → Responses API (Pydantic)
+    messages = [
+        {"role": "system", "content": PROMPT_WORKFLOW_INTENT()},
+        *FEW_SHOT_INTENT(),
+        {"role": "user", "content": query},
+    ]
+    resp = await asyncio.wait_for(
+        llm.responses_text(input=messages, pydantic_model=IntentClassification),
+        timeout=timeout_sec,
+    )
+    if resp.get("status") == "success":
+        data = resp.get("data")
+        try:
+            if isinstance(data, dict):
+                return IntentClassification.model_validate(data)
+            elif isinstance(data, str):
+                return IntentClassification.model_validate_json(data)
+        except ValidationError:
+            pass
+
+    # 3) Last resort
+    return IntentClassification(intent="other", confidence=0.0)
 
 
 async def route_based_on_intent(
-    llm: AsyncOpenAI,
     query: str,
+    llm: LLMChains = LLMChains(),
     *,
-    model: str,
     on_proposal_generation: OnAny,
     on_kak_analyzer: OnAny,
     on_product_calculator: OnAny,
     on_web_search: OnAny,
     on_other: OnAny,
     confidence_threshold: float = 0.60,
-    temperature: float = 0.0,
-    top_p: float = 0.0,
     timeout_sec: float = 45.0,
 ) -> Tuple[Any, IntentClassification]:
-    cls = await classify_intent_responses(
+    cls = await classify_intent(
         llm,
         query,
-        model=model,
-        temperature=temperature,
-        top_p=top_p,
         timeout_sec=timeout_sec,
     )
     logger.info(
