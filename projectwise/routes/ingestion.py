@@ -14,20 +14,30 @@ ingestion_bp = Blueprint("ingestion", __name__)
 
 
 # di module scope, tapi lewat app context saat pertama dipakai:
-def _endpoints():
+def _endpoints_kak():
     # cfg: ServiceConfigs = current_app.extensions["service_configs"]
     base = "http://localhost:5000/"
     return {
-        "upload": urljoin(base, "api/upload-kak-tor/"),
+        "upload": urljoin(base, "api/upload-kak/"),
+        "check": urljoin(base, "api/check-status/?job_id="),
+    }
+
+def _endpoints_product():
+    # cfg: ServiceConfigs = current_app.extensions["service_configs"]
+    base = "http://localhost:5000/"
+    return {
+        "upload": urljoin(base, "api/upload-product/"),
         "check": urljoin(base, "api/check-status/?job_id="),
     }
 
 
 # Timeout total (detik) untuk koneksi ke MCP
-HTTP_TIMEOUT = httpx.Timeout(360.0)   # connect+read+write+pool total
-HTTP_LIMITS  = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+HTTP_TIMEOUT = httpx.Timeout(360.0)  # connect+read+write+pool total
+HTTP_LIMITS = httpx.Limits(max_connections=10, max_keepalive_connections=5)
 
-
+# =====================================
+# kak analyzer upload
+# =====================================
 @ingestion_bp.post("/upload-kak/")
 async def upload_kak():
     """
@@ -35,27 +45,29 @@ async def upload_kak():
       - project_name (str)
       - pelanggan    (str)
       - tahun        (str)
-      - file         (file PDF/DOCX KAK/TOR)
+      - file         (file PDF)
 
     Lalu forward ke MCP (async, httpx) dan kembalikan job_id untuk dipolling.
     """
-    eps = _endpoints()
+    eps = _endpoints_kak()
     # === 1) Ambil form & file dari request (Quart) ===
     form = await request.form
     files_in = await request.files
 
-    project_name = (form.get("project_name") or "").strip()
-    pelanggan    = (form.get("pelanggan") or "").strip()
-    tahun        = (form.get("tahun") or "").strip()
-    kak_file     = files_in.get("file")
+    project = (form.get("project_name") or "").strip()
+    pelanggan = (form.get("pelanggan") or "").strip()
+    tahun = (form.get("tahun") or "").strip()
+    kak_file = files_in.get("file")
 
     # Validasi input minimal
-    if not (project_name and pelanggan and tahun and kak_file):
-        return jsonify({"error": "Semua field wajib diisi (project_name, pelanggan, tahun, file)."}), 400
+    if not (project and pelanggan and tahun and kak_file):
+        return jsonify(
+            {"error": "Semua field wajib diisi (project, pelanggan, tahun, file)."}
+        ), 400
 
     # Siapkan body untuk MCP
     data = {
-        "project_name": project_name,
+        "project": project,
         "pelanggan": pelanggan,
         "tahun": tahun,
     }
@@ -66,10 +78,17 @@ async def upload_kak():
 
     # === 2) Kirim ke MCP (async) ===
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, limits=HTTP_LIMITS) as client:
-            resp = await client.post(eps["upload"], data=data, files=files)
+        async with httpx.AsyncClient(
+            timeout=HTTP_TIMEOUT, limits=HTTP_LIMITS
+        ) as client:
+            resp = await client.post(
+                eps["upload"],
+                data=data,
+                files=files,
+                headers={"Accept": "application/json"},
+            )
             resp.raise_for_status()
-            
+
     except httpx.HTTPError as e:
         current_app.logger.exception("Gagal mengirim ke MCP")
         return jsonify({"error": f"Gagal mengirim ke MCP: {e}"}), 502
@@ -94,16 +113,101 @@ async def upload_kak():
     ), 202
 
 
+# =====================================
+# product analyzer upload
+# =====================================
+@ingestion_bp.post("/upload-product/")
+async def upload_product():
+    """
+    Menerima multipart/form-data:
+      - cateogry (str)
+      - product  (str)
+      - tahun    (str)
+      - file     (file PDF)
+
+    Lalu forward ke MCP (async, httpx) dan kembalikan job_id untuk dipolling.
+    """
+    logger.info("upload_product called")
+    eps = _endpoints_product()
+    # === 1) Ambil form & file dari request (Quart) ===
+    form = await request.form
+    files_in = await request.files
+
+    category = (form.get("category") or "").strip()
+    product = (form.get("product") or "").strip()
+    tahun = (form.get("tahun") or "").strip()
+    product_file = files_in.get("file")
+    logger.info("upload_product got form data")
+
+    # Validasi input minimal
+    if not (category and product and tahun and product_file):
+        return jsonify(
+            {"error": "Semua field wajib diisi (category, product, tahun, file)."}
+        ), 400
+
+    # Siapkan body untuk MCP
+    data = {
+        "category": category,
+        "product": product,
+        "tahun": tahun,
+    }
+
+    # FileStorage dari Quart punya .filename, .mimetype, .stream
+    # Untuk httpx, boleh kirim (filename, fileobj, content_type)
+    files = {"file": (product_file.filename, product_file.stream, product_file.mimetype)}
+
+    # === 2) Kirim ke MCP (async) ===
+    try:
+        async with httpx.AsyncClient(
+            timeout=HTTP_TIMEOUT, limits=HTTP_LIMITS
+        ) as client:
+            resp = await client.post(
+                eps["upload"],
+                data=data,
+                files=files,
+                headers={"Accept": "application/json"},
+            )
+            resp.raise_for_status()
+
+    except httpx.HTTPError as e:
+        current_app.logger.exception("Gagal mengirim ke MCP")
+        return jsonify({"error": f"Gagal mengirim ke MCP: {e}"}), 502
+
+    # === 3) Ambil job_id dari respons MCP ===
+    try:
+        mcp_json = resp.json()
+    except ValueError:
+        return jsonify({"error": "Response MCP bukan JSON yang valid."}), 502
+
+    job_id = mcp_json.get("job_id")
+    if not job_id:
+        return jsonify({"error": "MCP tidak mengembalikan job_id."}), 502
+
+    # === 4) Kembalikan job_id + URL polling status (proxy kita) ===
+    return jsonify(
+        {
+            "job_id": job_id,
+            "status_url": f"/proxy-check-status/{job_id}",
+            "message": "Upload diterima, silakan polling status ingestion.",
+        }
+    ), 202
+
+
+# =====================================
+# check status ingestion (proxy ke MCP)
+# =====================================
 @ingestion_bp.get("/proxy-check-status/<job_id>")
 async def proxy_check_status(job_id: str):
     """
     Proxy GET → MCP /check-status, lalu sederhanakan payload untuk frontend.
     """
-    eps = _endpoints()
+    eps = _endpoints_kak()
     url = f"{eps['check']}{job_id}"
-    
+
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, limits=HTTP_LIMITS) as client:
+        async with httpx.AsyncClient(
+            timeout=HTTP_TIMEOUT, limits=HTTP_LIMITS
+        ) as client:
             resp = await client.get(url)
             resp.raise_for_status()
     except httpx.HTTPError as e:
@@ -121,9 +225,9 @@ async def proxy_check_status(job_id: str):
     #   "message": "Keterangan",
     #   "result": { "summary": "...", "summary_file": "..." }
     # }
-    status  = data.get("status")
+    status = data.get("status")
     message = data.get("message")
-    result  = data.get("result") or {}
+    result = data.get("result") or {}
     summary = result.get("summary")
     summary_file = result.get("summary_file")
 

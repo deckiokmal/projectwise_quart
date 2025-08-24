@@ -7,11 +7,24 @@ from openai import AsyncOpenAI, APIConnectionError
 from projectwise.utils.logger import get_logger
 from projectwise.services.memory.long_term_memory import Mem0Manager
 from projectwise.services.memory.short_term_memory import ShortTermMemory
+from projectwise.services.llm_chain.llm_utils import build_context_blocks_memory
+from projectwise.services.llm_chain.llm_chains import LLMChains
 from projectwise.config import ServiceConfigs
-from projectwise.utils.llm_io import build_context_blocks_memory
 
 
 logger = get_logger(__name__)
+settings = ServiceConfigs()
+LLM = LLMChains(prefer="chat")
+
+try:
+    if str(settings.llm_model).lower().startswith("gpt"):
+        AsyncOpenAI(api_key=settings.llm_api_key)
+    else:
+        AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+except Exception as e:
+    logger.exception(
+        "Gagal inisialisasi AsyncOpenAI (cek LLM_API_KEY / base_url): %s", e
+    )
 
 
 class ChatWithMemory:
@@ -38,7 +51,10 @@ class ChatWithMemory:
         self.short_term = short_term
 
         # LLM
-        self.llm = llm or AsyncOpenAI()
+        self.llm = llm or AsyncOpenAI(
+            api_key=self.service_configs.llm_api_key,
+            base_url=self.service_configs.llm_base_url,
+        )
         self.llm_model = llm_model or service_configs.llm_model
         self.max_history = max_history
 
@@ -123,12 +139,14 @@ class ChatWithMemory:
 
         # Panggil LLM (Responses API)
         try:
-            resp = await self.llm.responses.create(
-                model=self.llm_model,
-                input=messages,  # type: ignore
-                temperature=self.service_configs.llm_temperature,
-            )
-            assistant_reply = (resp.output_text or "").strip() or "[Tidak ada respon]"
+            # resp = await self.llm.responses.create(
+            #     model=self.llm_model,
+            #     input=messages,  # type: ignore
+            #     temperature=self.service_configs.llm_temperature,
+            # )
+            # assistant_reply = (resp.output_text or "").strip() or "[Tidak ada respon]"
+            resp = await LLM.chat_completions_text(messages=messages)
+            assistant_reply = resp.strip() or "[Tidak ada respon]"
         except APIConnectionError:
             logger.error("LLM APIConnectionError.")
             human = "LLM API Connection Error. Silakan coba lagi."
@@ -140,7 +158,7 @@ class ChatWithMemory:
         # Persist memori (best-effort; jangan memblokir error ke user)
         try:
             await self.short_term.save(user_id, "user", user_message)
-            await self.short_term.save(user_id, "assistant", assistant_reply)
+            await self.short_term.save(user_id, "assistant", assistant_reply) # type: ignore
         except Exception:
             logger.exception("[war_room] gagal simpan ke ShortTermMemory")
 
@@ -150,8 +168,8 @@ class ChatWithMemory:
         except Exception:
             logger.exception("[war_room] gagal simpan ke LongTermMemory")
 
-        logger.info("[war_room] chat done | reply.len=%d", len(assistant_reply))
-        return assistant_reply
+        logger.info("[war_room] chat done | reply.len=%d", len(assistant_reply)) # type: ignore
+        return assistant_reply # type: ignore
 
 
 # ---- Contoh pemakaian (opsional) ----

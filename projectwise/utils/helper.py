@@ -6,6 +6,7 @@ import tiktoken
 from typing import Any
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from quart import jsonify
 
 
 def truncate_by_tokens(text: str, max_tokens: int, model: str = "gpt-4o-mini") -> str:
@@ -31,7 +32,7 @@ def safe_args(obj: Any) -> str:
         return s[:1000]
     except Exception:
         return str(obj)[:1000]
-    
+
 
 def stringify(obj: Any, limit: int = 4000) -> str:
     try:
@@ -41,10 +42,27 @@ def stringify(obj: Any, limit: int = 4000) -> str:
         return s
     except Exception:
         return str(obj)[:limit]
-    
+
 
 WIB = ZoneInfo("Asia/Jakarta")
+
 
 def wib_now_iso(timespec: str = "seconds") -> str:
     """Kembalikan waktu lokal WIB dalam ISO-8601 (contoh: 2025-08-17T01:55:12+07:00)."""
     return datetime.now(WIB).isoformat(timespec=timespec)
+
+
+def response_success_with_toast(reply, message, severity="warning", http_status=200):
+    payload = {
+        "status": "success",
+        "reply": reply,  # untuk chat
+        "message": message,  # untuk toast
+        "severity": severity,  # opsional: "warning" | "info"
+    }
+    return jsonify(payload), http_status
+
+
+def response_error_toast(status: str, message: str, http_status: int = 500):
+    return jsonify(
+        {"status": status, "message": message, "time": wib_now_iso()}
+    ), http_status

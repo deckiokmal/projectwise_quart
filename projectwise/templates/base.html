@@ -97,8 +97,8 @@
                         required />
                 </div>
                 <div class="form-group">
-                    <label for="kak-file">Pilih File (PDF/DOC)</label>
-                    <input type="file" id="kak-file" name="file" accept=".pdf,.doc,.docx" required />
+                    <label for="kak-file">Pilih File (PDF)</label>
+                    <input type="file" id="kak-file" name="file" accept=".pdf" required />
                 </div>
                 <div class="modal__actions">
                     <button type="button" class="btn btn--ghost" data-close="modal-kak">Batal</button>
@@ -118,12 +118,21 @@
 
             <form id="form-product" class="modal__form" enctype="multipart/form-data">
                 <div class="form-group">
-                    <label for="product-name">Nama Product</label>
-                    <input type="text" id="product-name" name="name" required />
+                    <label for="product-category">Product Category</label>
+                    <input type="text" id="product-category" name="category" placeholder="Contoh: Datacom" required />
                 </div>
                 <div class="form-group">
-                    <label for="product-file">Pilih File (Gambar/Doc)</label>
-                    <input type="file" id="product-file" name="file" accept="image/*,pdf,doc,docx" required />
+                    <label for="product-name">Product Name</label>
+                    <input type="text" id=product-name" name="product" placeholder="Contoh: Internet Dedicated" required />
+                </div>
+                <div class="form-group">
+                    <label for="product-tahun">Tahun</label>
+                    <input type="number" id="product-tahun" name="tahun" placeholder="2025" min="2000" max="2100"
+                        required />
+                </div>
+                <div class="form-group">
+                    <label for="product-file">Pilih File (PDF)</label>
+                    <input type="file" id="product-file" name="file" accept=".pdf" required />
                 </div>
                 <div class="modal__actions">
                     <button type="button" class="btn btn--ghost" data-close="modal-product">Batal</button>

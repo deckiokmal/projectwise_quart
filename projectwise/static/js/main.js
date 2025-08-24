@@ -446,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await res.json();
+      appendMessage({ role: 'assistant', text:'KAK Analyzer sedang diproses..' });
 
       if (res.status === 202) {
         if (data.message) toast(data.message, 'ok', 2500);
@@ -471,38 +472,44 @@ document.addEventListener('DOMContentLoaded', () => {
    * ============================= */
   el.formProduct && el.formProduct.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const fd = new FormData(form);
+    const formData = new FormData(el.formProduct);
+    console.debug('[upload-product] formData entries:',
+      Array.from(formData.entries()).map(([k,v]) => [k, v instanceof File ? `${v.name} (${v.type}, ${v.size}B)` : v]));
+    el.modalProduct?.classList.add('hidden');
 
-    setTyping(true);
+    toast('Product sizing proses di background.', 'warning', 3000);
+
     try {
-      const res = await fetch(form.action || '/upload-product', { method: 'POST', body: fd });
-      let data = null, raw = '';
-      try { data = await res.json(); } catch { raw = await res.text().catch(()=>''); }
+      const res = await fetch('/upload-product/', { method: 'POST', body: formData });
+      const ct = res.headers.get('content-type') || '';
 
-      setTyping(false);
+      if (!ct.includes('application/json')) {
+        const t = await res.text();
+        throw new Error(`Expected JSON, got:\n${t}`);
+      }
 
-      const status  = String(data?.status || (res.ok ? 'success' : 'error')).toLowerCase();
-      if (status === 'success') {
-        const reply = data?.reply;
-        if (reply !== undefined && reply !== null && String(reply).trim() !== '') {
-          appendMessage({ role: 'assistant', text: String(reply) });
-          scrollToBottom();
+      const data = await res.json();
+      appendMessage({ role: 'assistant', text: 'Product Sizing sedang diproses..' });
+      
+      if (res.status === 202) {
+        if (data.message) toast(data.message, 'ok', 2500);
+        if (data.job_id && data.status_url) {
+          pollStatus(data.job_id, data.status_url); // polling status ingestion
         } else {
-          toast('Balasan kosong dari LLM.', 'warning');
+          toast('Tidak ada job_id/status_url pada respons.', 'error', 4000);
         }
       } else {
-        const msg = data?.message || raw || res.statusText || 'Terjadi kesalahan.';
-        toast(msg, mapStatusToToastType(status));
+        throw new Error(data?.error || res.statusText);
       }
+
     } catch (err) {
-      setTyping(false);
-      toast('Gagal terhubung ke server: ' + (err?.message || err), 'error');
-      appendMessage({ role: 'assistant', text: 'Connection error: ' + (err?.message || err) });
+      const msg = err?.message || String(err);
+      toast('Upload Product gagal: ' + msg, 'error', 5000);
     } finally {
-      form.reset();
+      el.formProduct.reset();
     }
   });
+
 
   /* =============================
   *  Polling status ingestion (KAK)

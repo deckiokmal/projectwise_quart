@@ -18,15 +18,19 @@ load_dotenv(ENV_PATH)
 
 class ServiceConfigs(BaseSettings):
     """Konfigurasi service eksternal (MCP, LLM, dsb)."""
+
     # ====================================
     # Model dan parameter LLM
     # ====================================
-    llm_base_url: str = "https://dekallm.cloudeka.ai/v1"
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    embedding_model: str = os.getenv("EMBED_MODEL", "text-embedding-3-small")
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    max_token: int = 16000  # context window 32k token untuk ringkasan - qwen25-72b-instruct
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", 0.2))
-    max_token: int = 30000  # 30.000 token untuk ringkasan - qwen25-72b
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    embedding_model_api_key: str = os.getenv("EMBEDDING_MODEL_API_KEY", "")
 
     # ====================================
     # MCP
@@ -34,14 +38,14 @@ class ServiceConfigs(BaseSettings):
     mcp_server_url: str = os.getenv(
         "MCP_SERVER_URL", "http://localhost:5000/projectwise/mcp/"
     )
-    
+
     # ====================================
     # Agent Workflow
     # ====================================
     intent_classification_threshold: float = float(
         os.getenv("INTENT_CLASSIFICATION_THRESHOLD", 0.60)
     )
-    
+
     # ====================================
     # Database Vector Mem0ai
     # ====================================
@@ -56,7 +60,7 @@ class ServiceConfigs(BaseSettings):
     # ====================================
     max_concurrent_proccess: int = int(os.getenv("MAX_CONCURRENT_PROCCESS", "8"))
     max_cpu_workers: int = max(1, int(os.getenv("MAX_CPU_WORKERS", "4")))
-    
+
     log_retention: int = int(os.getenv("LOG_RETENTION", 90))
     app_env: str = os.getenv("APP_ENV", "development")
     model_config = SettingsConfigDict(

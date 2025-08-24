@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
+from projectwise.utils.logger import get_logger
 import re
 from copy import deepcopy
 from json import JSONDecodeError
@@ -49,12 +49,21 @@ from pydantic import BaseModel, Field, ConfigDict
 # =========================
 # Logger sederhana (Indonesia)
 # =========================
-logger = logging.getLogger("reflection_agent")
-if not logger.handlers:
-    logger.setLevel(logging.INFO)
-    _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s"))
-    logger.addHandler(_h)
+from projectwise.config import ServiceConfigs
+
+
+logger = get_logger(__name__)
+settings = ServiceConfigs()
+
+try:
+    if str(settings.llm_model).lower().startswith("gpt"):
+        AsyncOpenAI(api_key=settings.llm_api_key)
+    else:
+        AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+except Exception as e:
+    logger.exception(
+        "Gagal inisialisasi AsyncOpenAI (cek LLM_API_KEY / base_url): %s", e
+    )
 
 
 # =========================

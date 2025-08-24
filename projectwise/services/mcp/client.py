@@ -22,11 +22,12 @@ settings = ServiceConfigs()
 
 
 class MCPClient:
-    def __init__(self, model: str = settings.llm_model):
+    def __init__(self, model: str = settings.llm_model, prefer: str = "chat") -> None:
         # LLM, settings
         self.settings = settings
         self.llm = AsyncOpenAI(api_key=self.settings.llm_api_key)
         self.model = model
+        self.prefer = prefer  # "chat" | "responses"
 
         # Connection state
         self._exit_stack = AsyncExitStack()
@@ -80,7 +81,6 @@ class MCPClient:
             # 5) handshake
             await self.session.initialize()
             self._connected = True
-            logger.info("MCP session initialized with elicitation support")
 
             # 6) Start background tasks
             self._keep_alive = asyncio.create_task(self._keep_alive_loop())
@@ -88,7 +88,15 @@ class MCPClient:
 
             # 7) Initial tool cache
             await self._refresh_tool_cache()
-            logger.info(f"Initial tools: {[f['name'] for f in self.tool_cache]}")
+            try:
+                logger.info(
+                    f"Initial tools responses: {[f['name'] for f in self.tool_cache]}"
+                )
+            except Exception:
+                logger.info(
+                    f"Initial tools chat completions: {[f['function']['name'] for f in self.tool_cache]}"
+                )
+
             return self
 
         except Exception as e:
@@ -230,22 +238,40 @@ class MCPClient:
             logger.debug("Skipping tool cache refresh: no session")
             return
 
+        tools_result = await self.session.list_tools()
+        # logger.info(f"Initial tools mcp: {tools_result}")
         # Jika belum ada cache, fetch sekali
         if not self.tool_cache:
-            try:
-                result = await self.session.list_tools()  # type: ignore
-                self.tool_cache = [
-                    {
-                        "type": "function",
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.inputSchema,
-                    }
-                    for t in result.tools
-                ]
-            except Exception as e:
-                logger.error(f"Initial get_tools() failed: {e}", exc_info=True)
+            if self.prefer == "responses":
+                try:
+                    self.tool_cache = [
+                        {
+                            "type": "function",
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.inputSchema,
+                        }
+                        for tool in tools_result.tools
+                    ]
+                except Exception as e:
+                    logger.error(f"Initial get_tools() failed: {e}", exc_info=True)
+            else:
+                try:
+                    self.tool_cache = [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": tool.name,
+                                "description": tool.description,
+                                "parameters": tool.inputSchema,
+                            },
+                        }
+                        for tool in tools_result.tools
+                    ]
+                except Exception as e:
+                    logger.error(f"Initial get_tools() failed: {e}", exc_info=True)
 
+        # logger.info("Tools yang di normalisasi: %s", self.tool_cache)
         return self.tool_cache  # type: ignore
 
     # ————— MESSAGE HANDLER for notifications —————
@@ -404,16 +430,17 @@ class MCPClient:
         # Ensure connection
         if not self._connected or self.session is None:
             await self._ensure_reconnected()
-
         try:
             logger.info('call_tool "%s" args=%s', name, args)
             res = await self.session.call_tool(name, args)  # type: ignore
+            # raw: Any = res.content
             return res.content
         except ClosedResourceError:
             logger.warning("Stream closed, triggering reconnect")
             self._connected = False
             await self._ensure_reconnected()
             res = await self.session.call_tool(name, args)  # type: ignore
+            # raw = res.content
             return res.content
         except JSONRPCError as e:  # type: ignore
             logger.error("RPC error [%s]: %s", e.code, e.message)  # type: ignore

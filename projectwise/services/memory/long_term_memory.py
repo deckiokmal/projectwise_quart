@@ -99,14 +99,15 @@ class Mem0Manager:
             "llm": {
                 "provider": "openai",
                 "config": {
-                    "api_key": self._service_configs.llm_api_key,
+                    "openai_base_url": self._service_configs.llm_base_url,
+                    "api_key": self._service_configs.embedding_model_api_key,
                     "model": self._service_configs.llm_model,
                 },
             },
             "embedder": {
                 "provider": "openai",
                 "config": {
-                    "api_key": self._service_configs.llm_api_key,
+                    "api_key": self._service_configs.embedding_model_api_key,
                     "model": self._service_configs.embedding_model,
                 },
             },

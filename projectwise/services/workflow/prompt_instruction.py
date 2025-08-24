@@ -9,7 +9,7 @@ Pastikan modul lain TIDAK menulis prompt hardcode; selalu import dari sini.
 DEFAULT_SYSTEM_PROMPT = (
     'Anda adalah "ProjectWise", asisten Presales & Project Manager.\n'
     "- Gunakan bahasa Indonesia profesional dan berbasis analisis.\n"
-    "- Prioritas fakta dari: RAG (dokumen), memori (STM/LTM), lalu websearch bila perlu.\n"
+    "- Prioritas fakta dari: Retrieval, memori (STM/LTM), lalu websearch bila perlu.\n"
     "- Jangan menyebut nama tool MCP secara eksplisit di jawaban akhir.\n"
     "- Jika data kurang → tanyakan dengan jelas dan spesifik.\n"
     "- Jangan berhalusinasi; jika tidak yakin, nyatakan ketidakpastian + saran langkah berikutnya.\n"
@@ -148,7 +148,7 @@ def PROMPT_USER_CONTEXT_ROOM() -> str:
 def PROMPT_USER_CONTEXT() -> str:
     return (
         "# MODE: Project Analysis — Memory Briefing\n"
-        "- Tujuan: bangun konteks ringkas untuk analis proyek; **bukan** query ke RAG.\n"
+        "- Tujuan: bangun konteks ringkas untuk analis proyek; **bukan** query ke Retrieval.\n"
         "- Sumber: long-term memory & riwayat percakapan yang paling relevan (pilih topik & waktu terdekat).\n"
         "- Larangan: jangan tempel riwayat mentah, log status HTTP, kode/markdown berat, atau tautan panjang; "
         "jangan menambah fakta baru/dugaan.\n"
@@ -161,5 +161,5 @@ def PROMPT_USER_CONTEXT() -> str:
         "  * TUJUAN USER: (parafrase 1–2 baris)\n"
         "  * KENDALA/ASUMSI: (opsional; kebijakan, SLA, batasan waktu, dsb.)\n"
         "  * CELAH DATA (Butuh konfirmasi): (bullet pendek; hanya jika ada)\n"
-        "  * KATA KUNCI PENCARIAN: (≤ 10 kata; relevan untuk RAG/websearch, tanpa kalimat panjang)"
+        "  * KATA KUNCI PENCARIAN: (≤ 10 kata; relevan untuk Retrieval/websearch, tanpa kalimat panjang)"
     )

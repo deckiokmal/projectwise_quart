@@ -1,171 +1,279 @@
 # projectwise/routes/chat.py
 from __future__ import annotations
 
-import asyncio
 from quart import Blueprint, current_app, request, Response, jsonify
-from openai import AsyncOpenAI
 
 from projectwise.utils.logger import get_logger
-from projectwise.utils.human_response import make_response
+from projectwise.utils.helper import response_error_toast, response_success_with_toast
+
 from projectwise.services.workflow.intent_classification import route_based_on_intent
-from projectwise.services.workflow.handler_proposal_generation import (
-    run as proposal_run,
-)
-from projectwise.services.workflow.reflexion_actor import ReflectionActor
+from projectwise.services.llm_chain.llm_chains import LLMChains
 from projectwise.services.workflow.chat_with_memory import ChatWithMemory
-from projectwise.services.workflow.prompt_instruction import (
-    ACTOR_SYSTEM,
-    CRITIC_SYSTEM,
-    # PROMPT_KAK_ANALYZER,
-    PROMPT_PRODUCT_CALCULATOR,
-)
-from projectwise.services.workflow.handler_project_analysis import (
-    ProjectAnalysisActor,
-)
-# from projectwise.utils.llm_io import build_context_blocks_memory
 
 
-logger = get_logger(__name__)
 chat_bp = Blueprint("chat", __name__)
+logger = get_logger(__name__)
 
 
 @chat_bp.post("/message")
 async def chat_message():
-    app = current_app
     data = await request.get_json(force=True)
     user_id: str = data.get("user_id") or "default"
     user_message: str = data.get("message") or ""
-    project_name: str | None = data.get("project_name")
-    override_template: str | None = data.get("override_template")
 
-    # extensions
-    service_configs = app.extensions["service_configs"]
+    # ===============================================
+    # App Extensions
+    # ===============================================
+    app = current_app
+    mcp = app.extensions["mcp"]
+    llm = LLMChains(prefer="chat")
     stm = app.extensions["short_term_memory"]
     ltm = app.extensions["long_term_memory"]
+    service_configs = app.extensions["service_configs"]
+    memory = ChatWithMemory(
+        long_term=ltm, short_term=stm, service_configs=service_configs, max_history=5
+    )
 
-    llm = AsyncOpenAI(api_key=service_configs.llm_api_key)
-    model = service_configs.llm_model
-
-    # ——— Handlers untuk tiap intent ———
-    async def _h_proposal(q, cls):
-        # Check status MCP
-        if not app.extensions["mcp_status"]["connected"]:
-            response = make_response(
-                status="error", message="MCP belum terhubung.", http_status=503
-            )
-            return response
-
-        # Jalankan pipeline Document Generation
-        client = type("C", (), {"llm": llm, "model": model})
-        return await proposal_run(
-            client=client,
-            project_name=project_name or "Untitled",
-            user_query=q,
-            override_template=override_template,
-            app=app,
-        )
-
+    # ===============================================
+    # Handlers untuk tiap intent
+    # ===============================================
     async def _h_kak(q, cls):
         # Check status MCP
         if not app.extensions["mcp_status"]["connected"]:
-            response = make_response(
+            response: tuple[Response, int] = response_error_toast(
                 status="error", message="MCP belum terhubung.", http_status=503
             )
             return response
 
-        try:
-            actor = ProjectAnalysisActor.from_quart_app(app, max_history=12)
-            reply = await actor.run(prompt=q, user_id=user_id, k=10)
-            return reply
-        except RuntimeError as e:
-            # Kesalahan terkontrol (mis. MCP belum terhubung)
-            return jsonify({"status": "error", "message": str(e)}), 503
-        except asyncio.TimeoutError:
-            return jsonify(
-                {"status": "error", "message": "Proses melebihi waktu tunggu."}
-            ), 504
-        except Exception:
-            logger.exception("Gagal memproses project analysis.")
-            return jsonify(
-                {"status": "error", "message": "Terjadi kesalahan internal."}
-            ), 500
-
-    async def _h_calc(q, cls):
-        # Check status MCP
-        if not app.extensions["mcp_status"]["connected"]:
-            response = make_response(
-                status="error", message="MCP belum terhubung.", http_status=503
-            )
-            return response
-
-        # Jalankan Reflection Actor
-        actor = ReflectionActor.from_quart_app(app, llm=llm, llm_model=model)
-        return await actor.reflection_actor_with_mcp(
-            user_id=user_id,
-            prompt=q,
-            actor_instruction=ACTOR_SYSTEM() + "\n" + PROMPT_PRODUCT_CALCULATOR(),
-            critic_instruction=CRITIC_SYSTEM(),
+        # 0) Ambil konteks retrieval dari MCP
+        context_search = await llm.chat_completions_text(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Hasilkan maksimal '300 text' query instruction untuk pencarian retrieval vectordb yang tepat berdasarkan informasi memory. output hanya text query tanpa penjelasan dan format apapun.",
+                },
+                {
+                    "role": "system",
+                    "content": f"Memory:\n{await stm.get_history(user_id, limit=5)}",
+                },
+                {"role": "user", "content": q},
+            ]
         )
+
+        search = await mcp.call_tool(
+            "retrieval_tool", {"query": context_search, "k": 3}
+        )
+
+        # 1) Pesan awal
+        messages = [
+            {
+                "role": "system",
+                "content": "Anda adalah asisten yang membantu menjawab pertanyaan berdasarkan hasil analysis proyek. gunakan tools yang tersedia untuk mendapatkan informasi yang dibutuhkan.",
+            },
+            {"role": "system", "content": f"context dari MCP:\n{search}"},
+            {"role": "user", "content": q},
+        ]
+
+        # 2) Skema tools (format OpenAI Chat Completions)
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_kak_analysis_tool",
+                    "description": "Read KAK analysis.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "filename": {
+                                "type": "string",
+                                "description": "Nama project.",
+                            },
+                            "pelanggan": {
+                                "type": "string",
+                                "description": "Nama pelanggan.",
+                            },
+                            "project": {
+                                "type": "string",
+                                "description": "Nama project.",
+                            },
+                            "tahun": {
+                                "type": "string",
+                                "description": "Tahun project KAK (YYYY).",
+                            },
+                        },
+                        "required": ["filename", "pelanggan", "project", "tahun"],
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        ]
+
+        # 3) Minta model melakukan function-call
+        tool_calls, _raw = await llm.chat_function_call(
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+        )
+
+        # 4) Eksekusi tool yang diminta model
+        if tool_calls:
+            # eksekutor fungsi
+            async def exec_tool(name: str, args: dict) -> dict:
+                kak_summaries = await mcp.call_tool(name, args)
+                return kak_summaries
+
+            # Jalankan semua panggilan tool dari model, lalu lampirkan kembali hasilnya sebagai pesan role="tool"
+            for call in tool_calls:
+                fname = call["name"]
+                fargs = call["arguments"]  # sudah berupa dict dari LLMChains
+                out = await exec_tool(fname, fargs)
+                # logger.info(f"Tool {fname} executed with args {fargs}, got: {out}")
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "name": fname,
+                        "content": str(
+                            out
+                        ),  # string/JSON; OpenAI merekomendasikan string
+                    }
+                )
+
+        # 5) (Opsional) Tambah instruksi kecil agar model merangkum hasil tool
+        messages.append(
+            {
+                "role": "user",
+                "content": "Gunakan hasil tool di atas lalu berikan jawaban final.",
+            }
+        )
+
+        # 6) Minta jawaban final dari model (tanpa tools)
+        final_text = await llm.chat_completions_text(messages=messages)
+        return final_text
 
     async def _h_web(q, cls):
         # Check status MCP
         if not app.extensions["mcp_status"]["connected"]:
-            response = make_response(
+            response: tuple[Response, int] = response_error_toast(
                 status="error", message="MCP belum terhubung.", http_status=503
             )
             return response
 
-        # Jalankan Reflection Actor
-        actor = ReflectionActor.from_quart_app(app, llm=llm, llm_model=model)
-        return await actor.reflection_actor_with_mcp(
-            user_id=user_id,
-            prompt=q,
-            actor_instruction=ACTOR_SYSTEM() + "\nGunakan tool websearch bila relevan.",
-            critic_instruction=CRITIC_SYSTEM(),
+        context_search = await llm.chat_completions_text(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Hasilkan maksimal '300 text' query instruction untuk pencarian web yang tepat berdasarkan informasi memory. output hanya text query tanpa penjelasan dan format apapun.",
+                },
+                {
+                    "role": "system",
+                    "content": f"Memory:\n{await stm.get_history(user_id, limit=5)}",
+                },
+                {"role": "user", "content": q},
+            ]
+        )
+        search = await mcp.call_tool(
+            "websearch_tool", {"query": context_search, "max_results": 7}
+        )
+        # logger.info(f"Websearch results: {search}")
+        result = await llm.chat_completions_text(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Bertindak sebagai asisten yang membantu menjawab pertanyaan berdasarkan hasil pencarian web. berikan informasi apapun yang dapat anda temukan beserta sumbernya.",
+                },
+                {"role": "assistant", "content": f"Hasil pencarian web:\n{search}"},
+                {"role": "user", "content": q},
+            ]
+        )
+        return (
+            result or "Maaf, saya tidak dapat menemukan informasi yang Anda butuhkan."
+        )
+
+    async def _h_proposal(q, cls):
+        # Check status MCP
+        if not app.extensions["mcp_status"]["connected"]:
+            response: tuple[Response, int] = response_error_toast(
+                status="error", message="MCP belum terhubung.", http_status=503
+            )
+            return response
+
+        return response_success_with_toast(
+            reply="Fitur belum tersedia penuh.",
+            message="Fitur belum tersedia (mode terbatas).",
+            severity="warning",
+            http_status=200,
+        )
+
+    async def _h_calc(q, cls):
+        # Check status MCP
+        if not app.extensions["mcp_status"]["connected"]:
+            response: tuple[Response, int] = response_error_toast(
+                status="error", message="MCP belum terhubung.", http_status=503
+            )
+            return response
+
+        search = await mcp.call_tool(
+            "read_product_sizing_tool",
+            {
+                "filename": "internet_dedicated",
+                "category": "datacom",
+                "product": "internet_dedicated",
+                "tahun": "2025",
+            },
+        )
+
+        result = await llm.chat_completions_text(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Tugas anda adalah menghitung harga produk berdasarkan panduan yang tersedia. Berikan jawaban yang jelas dan ringkas. Jika ada asumsi yang anda buat, sebutkan secara eksplisit.",
+                },
+                {
+                    "role": "system",
+                    "content": f"Panduan menghitung harga:\n{search}",
+                },
+                {
+                    "role": "system",
+                    "content": f"Conversation History:\n{await stm.get_history(user_id, limit=5)}",
+                },
+                {"role": "user", "content": q},
+            ]
+        )
+        return (
+            result or "Maaf, saya tidak dapat menemukan informasi yang Anda butuhkan."
         )
 
     async def _h_other(q, cls):
-        # Fallback ke War Room agar tetap memanfaatkan STM/LTM
-        general_conversation = ChatWithMemory.from_quart_app(app)
-        return await general_conversation.chat(user_id=user_id, user_message=q)
+        reply = await memory.chat(user_id=user_id, user_message=q)
+        return reply
 
-    # # Extract detail informasi sebelum intent
-    # logger.info("extract detail informasi from memory")
-    # context_memory = await build_context_blocks_memory(
-    #     long_term=ltm,
-    #     short_term=stm,
-    #     user_id=user_id,
-    #     user_message=user_message,
-    #     max_history=12,
-    # )
-    # resp_extracted = await llm.responses.create(
-    #     model=model,
-    #     input=[
-    #         {
-    #             "role": "system",
-    #             "content": "Extract detail informasi dari memory yang spesifik berdasarkan user query. Hasilkan 1 kalimat singkat, padat dan jelas.",
-    #         },
-    #         {"role": "user", "content": context_memory},
-    #     ],
-    #     temperature=0,
-    # )
-    # extracted_msg = resp_extracted.output_text or user_message
+    # ===============================================
+    # Klasifikasi intent + routing ke handler terkait
+    # ===============================================
+    try:
+        reply, cls = await route_based_on_intent(
+            query=user_message,
+            on_proposal_generation=_h_proposal,
+            on_kak_analyzer=_h_kak,
+            on_product_calculator=_h_calc,
+            on_web_search=_h_web,
+            on_other=_h_other,
+            confidence_threshold=service_configs.intent_classification_threshold,
+            prefer="chat",
+        )
+    except Exception:
+        logger.exception("Gagal memproses routing/handler.")
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Terjadi kesalahan pada server saat memproses pesan.",
+            }
+        ), 500
 
-    # ——— Route intent ———
-    # logger.info("Menjalankan route intent berdasarkan extract detail informasi memory")
-    reply, cls = await route_based_on_intent(
-        llm,
-        user_message,
-        model=model,
-        on_proposal_generation=_h_proposal,
-        on_kak_analyzer=_h_kak,
-        on_product_calculator=_h_calc,
-        on_web_search=_h_web,
-        on_other=_h_other,
-        confidence_threshold=service_configs.intent_classification_threshold,
-    )
-
+    # ===============================================
     # Persist ke memori (best‑effort)
+    # ===============================================
     try:
         await stm.save(user_id, "user", user_message)
         await stm.save(user_id, "assistant", str(reply))
@@ -179,14 +287,20 @@ async def chat_message():
     except Exception:
         logger.exception("Gagal menyimpan memori.")
 
-    # jawaban akhir ke user
-    # 1) Jika handler mengembalikan Response/tuple Response, kirim apa adanya
+    # ===============================================
+    # Bentuk response HTTP
+    # ===============================================
+    # ——— Pass-through untuk Response dari make_response (error) ———
     if isinstance(reply, Response):
         return reply
     if isinstance(reply, tuple) and reply and isinstance(reply[0], Response):
         return reply  # (Response, status) dari make_response
 
-    # 2) Jika string/bytes/dll → normalisasi ke string, lalu gunakan format standar
+    # ——— Normalisasi tipe data sukses ———
+    if isinstance(reply, dict):
+        # anggap ini payload sukses yang ingin ditampilkan di chat
+        return jsonify({"status": "success", "reply": reply}), 200
+
     if isinstance(reply, (bytes, bytearray)):
         reply = reply.decode(errors="ignore")
     elif not isinstance(reply, str):
