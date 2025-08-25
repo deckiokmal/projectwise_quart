@@ -1,7 +1,7 @@
 # projectwise/services/memory/short_term_memory.py
 from __future__ import annotations
 
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -81,9 +81,12 @@ class ShortTermMemory:
                 logger.error("Gagal simpan memory untuk user %s: %s", user_id, ex)
                 raise
 
-    # TODO: perlu dibenerin lagi karna tidak kirim user message sebagai query.
-    async def get_history(self, user_id: str, limit: Optional[int] = None) -> str:
-        """Ambil history pesan dan kembalikan sebagai markdown list terpotong token."""
+    async def get_history(
+        self, user_id: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Ambil chat history terbaru untuk user_id tertentu, urut dari lama ke baru.
+        Format return: List[{"role": role, "content": content}, ...]
+        """
         limit = limit or self.max_history
 
         async with self.SessionLocal() as session:  # type: ignore
@@ -94,14 +97,14 @@ class ShortTermMemory:
                     .order_by(Message.id.desc())
                     .limit(limit)
                 )
-                raw = list(result.scalars().all())[::-1]
+                raw = list(result.scalars().all())[::-1]  # Message object
             except Exception as ex:
                 logger.error("Gagal ambil history untuk user %s: %s", user_id, ex)
                 raise
 
-        # Buat block markdown terpotong
-        lines: List[str] = []
+        lines: List[Dict[str, Any]] = []
         for m in raw:
             snippet = truncate_by_tokens(m.content, 150)
-            lines.append(f"- **{m.role}**: {snippet}")
-        return "\n".join(lines)
+            lines.append({"role": m.role, "content": snippet})
+
+        return lines

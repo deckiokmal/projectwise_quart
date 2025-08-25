@@ -24,10 +24,12 @@ class ServiceConfigs(BaseSettings):
     # ====================================
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
+    llm_model: str = os.getenv("LLM_MODEL", "qwen/qwen25-72b-instruct")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    max_token: int = 16000  # context window 32k token untuk ringkasan - qwen25-72b-instruct
+    max_token: int = (
+        16000  # context window 32k token untuk ringkasan - qwen25-72b-instruct
+    )
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", 0.2))
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     embedding_model_api_key: str = os.getenv("EMBEDDING_MODEL_API_KEY", "")
@@ -53,7 +55,7 @@ class ServiceConfigs(BaseSettings):
     qdrant_host: str = os.getenv("QDRANT_HOST", "localhost")
     qdrant_port: int = int(os.getenv("QDRANT_PORT", 6333))
     vector_dim: int = int(os.getenv("VECTOR_DIM", "1536"))
-    collection_name: str = "projectwise_client"
+    collection_name: str = os.getenv("COLLECTION_NAME","projectwise_client")
 
     # ====================================
     # Base config ENV

@@ -7,7 +7,6 @@ from openai import AsyncOpenAI, APIConnectionError
 from projectwise.utils.logger import get_logger
 from projectwise.services.memory.long_term_memory import Mem0Manager
 from projectwise.services.memory.short_term_memory import ShortTermMemory
-from projectwise.services.llm_chain.llm_utils import build_context_blocks_memory
 from projectwise.services.llm_chain.llm_chains import LLMChains
 from projectwise.config import ServiceConfigs
 
@@ -15,16 +14,6 @@ from projectwise.config import ServiceConfigs
 logger = get_logger(__name__)
 settings = ServiceConfigs()
 LLM = LLMChains(prefer="chat")
-
-try:
-    if str(settings.llm_model).lower().startswith("gpt"):
-        AsyncOpenAI(api_key=settings.llm_api_key)
-    else:
-        AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
-except Exception as e:
-    logger.exception(
-        "Gagal inisialisasi AsyncOpenAI (cek LLM_API_KEY / base_url): %s", e
-    )
 
 
 class ChatWithMemory:
@@ -105,46 +94,43 @@ class ChatWithMemory:
         assistant_message: Optional[str] = None,
     ) -> str:
         """
-        Kirim pesan ke LLM dalam mode War Room:
-        - Menyuntik blok STM/LTM ke system prompt (briefing).
-        - Opsional menyertakan `assistant_message` (mis. output tool) bila ada.
-        - Menyimpan percakapan ke STM & LTM.
+        Kirim pesan ke LLM dengan memanfaatkan STM & LTM.
+        Alur:
+        1. Ambil LTM (mem0) relevan berdasarkan user_message.
+        2. Ambil STM (SQLite) berdasarkan user_id.
+        3. Bentuk messages: system (LTM) + history (STM) + user_message + (opsional) assistant_message.
+        4. Panggil LLM chat completions.
+        5. Kembalikan balasan assistant.
 
         Return:
             string balasan dari LLM
         """
         logger.info(
-            "[war_room] chat start | user=%s | msg.len=%d",
+            "chat start | user=%s | msg.len=%d",
             user_id,
             len(user_message or ""),
         )
-
-        system_prompt = await build_context_blocks_memory(
-            short_term=self.short_term,
-            long_term=self.long_term,
-            user_id=user_id,
-            user_message=user_message,
-            max_history=self.max_history,
-            # prompt_instruction=PROMPT_WAR_ROOM(),
+        # Siapkan messages Relevan Memory, history, user message, (opsional) assistant message
+        # 1. Ambil LTM (mem0)
+        ltm = await self.long_term.get_memories_v2(
+            query=user_message, user_id=user_id, limit=5
         )
-
-        messages: List[Dict[str, Any]] = [
-            self._shape("system", system_prompt),
-            self._shape("user", user_message),
-        ]
-        if assistant_message:  # hanya jika disuplai
+        # 2. Ambil STM (SQLite)
+        messages: List[Dict[str, Any]] = await self.short_term.get_history(
+            user_id, limit=5
+        )
+        # 3. Bentuk messages
+        messages.insert(0, self._shape("system", f"Relevan memory:\n{ltm}"))
+        # 4. User message
+        messages.append(self._shape("user", user_message))
+        # 5. Assistant message (opsional)
+        if assistant_message:
             messages.append(
                 self._shape("assistant", f"Tool output: {assistant_message}")
             )
 
-        # Panggil LLM (Responses API)
+        # Panggil LLM
         try:
-            # resp = await self.llm.responses.create(
-            #     model=self.llm_model,
-            #     input=messages,  # type: ignore
-            #     temperature=self.service_configs.llm_temperature,
-            # )
-            # assistant_reply = (resp.output_text or "").strip() or "[Tidak ada respon]"
             resp = await LLM.chat_completions_text(messages=messages)
             assistant_reply = resp.strip() or "[Tidak ada respon]"
         except APIConnectionError:
@@ -155,26 +141,5 @@ class ChatWithMemory:
             logger.exception("[war_room] LLM error")
             assistant_reply = f"Maaf, terjadi kesalahan saat memproses jawaban: {e}"
 
-        # Persist memori (best-effort; jangan memblokir error ke user)
-        try:
-            await self.short_term.save(user_id, "user", user_message)
-            await self.short_term.save(user_id, "assistant", assistant_reply) # type: ignore
-        except Exception:
-            logger.exception("[war_room] gagal simpan ke ShortTermMemory")
-
-        try:
-            # convo = messages + [self._shape("assistant", assistant_reply)]
-            await self.long_term.add_memory(user_message, user_id=user_id)
-        except Exception:
-            logger.exception("[war_room] gagal simpan ke LongTermMemory")
-
-        logger.info("[war_room] chat done | reply.len=%d", len(assistant_reply)) # type: ignore
-        return assistant_reply # type: ignore
-
-
-# ---- Contoh pemakaian (opsional) ----
-"""
-# Dari dalam handler Quart:
-war = ChatWithMemory.from_quart_app(current_app)
-reply = await war.chat(user_id="u-123", user_message="Status risiko jaringan site A?")
-"""
+        logger.info("chat done | reply.len=%d", len(assistant_reply))
+        return assistant_reply
