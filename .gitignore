@@ -12,3 +12,6 @@ wheels/
 
 database/
 logs/
+
+tests/
+.pytest_cache/
