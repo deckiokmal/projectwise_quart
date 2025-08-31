@@ -9,6 +9,7 @@ from .utils.logger import get_logger
 from .services.mcp.client import MCPClient
 from .services.memory.short_term_memory import ShortTermMemory
 from .services.memory.long_term_memory import Mem0Manager
+from projectwise.models.models import ModelDB
 
 
 # Module-level references to the singletons
@@ -45,12 +46,16 @@ async def init_extensions(app: Quart) -> None:
     }
     logger.info("MCP state initialised")
 
-    # Initialise short‑term memory using the database URI from the app config
+    # Initialise Models Database
     db_url = app.config["SQLALCHEMY_DATABASE_URI"]
+    models_db = ModelDB(db_url)
+    await models_db.init_models()
+    app.extensions["db"] = models_db
+    
+    # Initialise short‑term memory using the database URI from the app config
     short_term_memory = ShortTermMemory(db_url=db_url, echo=False, max_history=20)
     await short_term_memory.init_models()
     app.extensions["short_term_memory"] = short_term_memory
-    logger.info(f"ShortTermMemory initialised with DB: {db_url}")
 
     # Initialise long‑term memory (vector store)
     long_term_memory = Mem0Manager(service_configs)

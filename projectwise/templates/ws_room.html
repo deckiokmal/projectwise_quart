@@ -1,138 +1,82 @@
 {% extends 'base.html' %}
+{% block title %}War Room • ProjectWise{% endblock %}
 
-{% block title %}Rooms — ProjectWise{% endblock %}
-
-{% block body %}
-<div class="app-container">
-    <main class="main">
-        
-        <header class="main__header">
-            <h1>War Rooms</h1>
-        </header>
-
-        <div style="display:flex; gap:0.5rem; align-items:center;">
-            <input type="text" id="room-id" placeholder="Room name or ID" style="flex:1;">
-            <input type="text" id="user-id" placeholder="Your name" style="flex:1;">
-            <button id="join-room-btn">Join</button>
-            <button id="leave-room-btn" disabled>Leave</button>
-        </div>
-
-        <section class="main__chat">
-            <!-- Pesan akan ter-render di sini -->
-        </section>
-
-        <footer class="main__input">
-            <form id="chat-form" autocomplete="off">
-                <!-- Baris 1: Text input -->
-                <div class="input-row">
-                    <textarea id="chat-input" name="message" placeholder="Ask anything" autocomplete="off" required
-                        rows="1"></textarea>
-                </div>
-
-
-                <!-- Baris 2: Upload + Send -->
-                <div class="input-row input-row--actions">
-                    <!-- Tombol “+” dengan dropdown (drop-up) -->
-                    <div class="upload-dropdown">
-                        <button type="button" id="upload-btn" class="btn btn--icon" title="Upload">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                        <!-- Menu drop-up -->
-                        <div id="upload-menu" class="upload-menu hidden">
-                            <button type="button" data-type="kak" class="upload-menu__item">
-                                <i class="fa-regular fa-file-lines"></i> Upload KAK
-                            </button>
-                            <button type="button" data-type="product" class="upload-menu__item">
-                                <i class="fa-solid fa-box"></i> Upload Product
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Tombol kirim -->
-                    <button type="submit" class="btn btn--send" title="Send Message">
-                        <i class="fa-solid fa-paper-plane"></i>
-                    </button>
-                </div>
-
-
-                <!-- Hidden file input -->
-                <input type="file" id="file-input" name="files" class="hidden" multiple />
-            </form>
-        </footer>
-    </main>
-</div>
+{% block head %}
 {% endblock %}
 
-{% block scripts %}
-<script>
-    let ws = null;
+{% block body %}
+<section class="ws-area">
+    <header class="ws__header" aria-label="WS Header">
+        <div class="ws__title">
+            <i class="fa-solid fa-robot"></i>
+            War Room (ProjectWise)
+        </div>
+        <div class="ws__meta">
+            <input type="text" id="ws-room-id" class="ws-input-bar" placeholder="Room ID" autocomplete="off">
+            <input type="text" id="ws-user-id" class="ws-input-bar" placeholder="Username" autocomplete="off">
+            <label class="status">
+                <span class="ws-dot" id="conn-dot" title="Disconnected"></span>
+                <span id="conn-label">Disconnected</span>
+            </label>
+            <label class="small">
+                <input type="checkbox" id="ws-auto-reconnect"> Auto-reconnect
+            </label>
+            <button id="join-room-btn" class="btn btn--primary">Join</button>
+            <button id="leave-room-btn" class="btn btn--ghost hidden" disabled>Leave</button>
+        </div>
+    </header>
 
-    function appendWsMessage(sender, content) {
-        const messagesEl = document.getElementById('ws-messages');
-        const div = document.createElement('div');
-        div.classList.add('msg');
-        div.innerHTML = `<strong>${sender}:</strong> ${content}`;
-        messagesEl.appendChild(div);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
+    <section id="ws-section" class="ws__messages" aria-live="polite" aria-label="Messages">
+        <div id="empty-state" class="empty-state">
+            <div class="empty-state__icon">
+                <i class="fa-solid fa-sparkles"></i>
+            </div>
+            <h2 class="empty-state__title">Mulai percakapan</h2>
+            <p class="empty-state__desc">
+                Enter <b>Room ID</b> & <b>Username</b>, then press <b>Join</b>.
+            </p>
+        </div>
 
-    document.getElementById('join-room-btn').addEventListener('click', () => {
-        const roomId = document.getElementById('room-id').value.trim();
-        const userId = document.getElementById('user-id').value.trim();
-        if (!roomId || !userId) return;
-        if (ws) {
-            ws.close();
-        }
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${roomId}/${userId}`);
-        ws.onopen = () => {
-            appendWsMessage('System', `Connected to room ${roomId} as ${userId}`);
-            document.getElementById('ws-input').disabled = false;
-            document.getElementById('ws-send-btn').disabled = false;
-            document.getElementById('leave-room-btn').disabled = false;
-        };
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'completed') {
-                    appendWsMessage(data.from, data.content);
-                } else {
-                    // fallback: treat as plain message
-                    appendWsMessage('Assistant', event.data);
-                }
-            } catch (_) {
-                appendWsMessage('Assistant', event.data);
-            }
-        };
-        ws.onclose = () => {
-            appendWsMessage('System', 'Disconnected from room');
-            document.getElementById('ws-input').disabled = true;
-            document.getElementById('ws-send-btn').disabled = true;
-            document.getElementById('leave-room-btn').disabled = true;
-        };
-    });
+        <!-- Typing indicator -->
+        <div id="typing" class="typing hidden" aria-hidden="true" aria-label="Assistant is typing">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
 
-    document.getElementById('leave-room-btn').addEventListener('click', () => {
-        if (ws) {
-            ws.close();
-            ws = null;
-        }
-    });
+        <!-- ws chat messages here -->
 
-    document.getElementById('ws-send-btn').addEventListener('click', () => {
-        const inputEl = document.getElementById('ws-input');
-        const text = inputEl.value.trim();
-        if (!text || !ws) return;
-        ws.send(JSON.stringify({ message: text }));
-        appendWsMessage('You', text);
-        inputEl.value = '';
-    });
+    </section>
 
-    document.getElementById('ws-input').addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            document.getElementById('ws-send-btn').click();
-        }
-    });
-</script>
+    <!-- Input bar (horizontal) -->
+    <footer class="chat__input main__input" aria-label="Chat Input">
+        <form id="ws-form" class="input-bar" autocomplete="off">
+            <!-- Tombol “+” + drop-up -->
+            <div class="upload-dropdown">
+                <button type="button" id="upload-btn" class="btn btn--icon" title="Upload" aria-haspopup="true"
+                    aria-expanded="false">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <div id="upload-menu" class="upload-menu hidden" role="menu" aria-label="Upload Menu">
+                    <button type="button" data-type="ws-document" class="upload-menu__item" role="menuitem">
+                        <i class="fa-regular fa-file-lines"></i> Upload document
+                    </button>
+                </div>
+            </div>
+
+            <!-- Textarea fleksibel -->
+            <textarea id="ws-input" name="ws-message" placeholder="Mulai diskusi…" autocomplete="off" required rows="1"
+                class="ws-textarea" aria-label="Message input"></textarea>
+
+            <!-- Kirim -->
+            <button type="submit" class="btn btn--send" title="Kirim">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+
+            <!-- Hidden file input -->
+            <input type="file" id="file-input" name="files" class="hidden" multiple />
+        </form>
+
+        <!-- Attachment preview (muncul saat ada file) -->
+        <div id="attachment-preview" class="attachment-preview hidden" aria-live="polite"></div>
+    </footer>
+</section>
 {% endblock %}

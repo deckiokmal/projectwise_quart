@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% block title %}War Room • ProjectWise{% endblock %}
+
+{% block head %}{% endblock %}
+
+{% block body %}
+<section class="ws-room">
+    <header class="ws__header" aria-label="Ws Header">
+        <div class="ws__title">
+            <i class="fa-solid fa-robot"></i>
+            War Room
+        </div>
+        <div class="ws__meta">
+            <input class="ws-room-id" type="text" id="room-id" placeholder="Room ID" autocomplete="off">
+            <input class="ws-room-id" type="text" id="user-id" placeholder="Username" autocomplete="off">
+            <button id="join-room-btn" class="btn btn--primary">Join</button>
+            <button id="leave-room-btn" class="btn btn--outline hidden" disabled>Leave</button>
+        </div>
+    </header>
+
+    <!-- Message timeline -->
+    <section class="ws__messages" aria-live="polite" aria-label="Messages">
+        <div id="empty-state" class="empty-state">
+            <div class="empty-state__icon"><i class="fa-solid fa-sparkles"></i></div>
+            <h2 class="empty-state__title">Mulai percakapan</h2>
+            <p class="empty-state__desc">Masukkan ID War room dan mulai percakapan.</p>
+        </div>
+
+        <!-- container pesan -->
+        <div id="ws-messages" class="ws__timeline" role="log" aria-live="polite"></div>
+
+        <!-- Typing indicator -->
+        <div id="typing" class="typing hidden" aria-hidden="true" aria-label="Assistant is typing">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
+    </section>
+
+    <!-- Input bar -->
+    <footer class="chat__input main__input" aria-label="Chat Input">
+        <form id="ws-form" class="input-bar" autocomplete="off">
+            <!-- Upload (opsional, belum di-wire ke backend) -->
+            <div class="upload-dropdown">
+                <button type="button" id="upload-btn" class="btn btn--icon" title="Upload" aria-haspopup="true"
+                    aria-expanded="false">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <div id="upload-menu" class="upload-menu hidden" role="menu" aria-label="Upload Menu">
+                    <button type="button" data-type="ws-file" class="upload-menu__item" role="menuitem">
+                        <i class="fa-regular fa-file-lines"></i> Upload File
+                    </button>
+                </div>
+            </div>
+
+            <textarea id="ws-input" name="ws-message" placeholder="Tanya apa saja…" rows="1" class="chat-textarea"
+                aria-label="WS Message input" disabled></textarea>
+
+            <button id="ws-send-btn" type="submit" class="btn btn--send" title="Kirim" disabled>
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+
+            <input type="file" id="file-input" name="files" class="hidden" multiple />
+        </form>
+
+        <div id="attachment-preview" class="attachment-preview hidden" aria-live="polite"></div>
+    </footer>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    /*** State ***/
+    let ws = null;
+
+    function setUIConnected(connected) {
+        const joinBtn = document.getElementById('join-room-btn');
+        const leaveBtn = document.getElementById('leave-room-btn');
+        const inputEl = document.getElementById('ws-input');
+        const sendBtn = document.getElementById('ws-send-btn');
+
+        joinBtn.classList.toggle('hidden', connected);
+        leaveBtn.classList.toggle('hidden', !connected);
+        leaveBtn.disabled = !connected;
+        inputEl.disabled = !connected;
+        sendBtn.disabled = !connected;
+    }
+
+    function ensureMessagesContainer() {
+        const el = document.getElementById('ws-messages');
+        const empty = document.getElementById('empty-state');
+        if (empty) empty.classList.add('hidden');
+        return el;
+    }
+
+    function escapeHTML(s) {
+        return s.replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]);
+    }
+
+    function appendWsMessage(sender, content) {
+        const messagesEl = ensureMessagesContainer();
+        const item = document.createElement('div');
+        item.classList.add('msg');
+        item.innerHTML = `<strong>${escapeHTML(sender)}:</strong> ${escapeHTML(content)}`;
+        messagesEl.appendChild(item);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function parseJSONSafe(data) {
+        try { return JSON.parse(data); } catch { return null; }
+    }
+
+    /*** Events ***/
+    document.getElementById('join-room-btn').addEventListener('click', () => {
+        const roomId = document.getElementById('room-id').value.trim();
+        const userId = document.getElementById('user-id').value.trim();
+        if (!roomId || !userId) return;
+
+        if (ws) { ws.close(); ws = null; }
+
+        const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const url = `${proto}://${window.location.host}/ws/chat/${encodeURIComponent(roomId)}/${encodeURIComponent(userId)}`;
+        ws = new WebSocket(url);
+
+        ws.onopen = () => {
+            setUIConnected(true);
+            appendWsMessage('System', `Connected to room ${roomId} as ${userId}`);
+        };
+
+        ws.onmessage = (event) => {
+            const data = parseJSONSafe(event.data);
+            if (!data) {
+                appendWsMessage('Assistant', String(event.data ?? ''));
+                return;
+            }
+            if (data.error) {
+                appendWsMessage('Error', data.error + (data.detail ? ` (${data.detail})` : ''));
+                return;
+            }
+            // default contract: completed message from server
+            if (data.type === 'completed') {
+                appendWsMessage(data.from ?? 'assistant', data.content ?? '');
+            } else if (data.type === 'delta') {
+                // (opsional) jika suatu hari server mengirim streaming
+                appendWsMessage(data.from ?? 'assistant', data.content ?? '');
+            } else {
+                appendWsMessage('Assistant', JSON.stringify(data));
+            }
+        };
+
+        ws.onerror = () => {
+            appendWsMessage('System', 'WebSocket error');
+        };
+
+        ws.onclose = () => {
+            appendWsMessage('System', 'Disconnected');
+            setUIConnected(false);
+        };
+    });
+
+    document.getElementById('leave-room-btn').addEventListener('click', () => {
+        if (ws) { ws.close(); ws = null; }
+    });
+
+    // Submit untuk kirim pesan
+    document.getElementById('ws-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const inputEl = document.getElementById('ws-input');
+        const text = inputEl.value.trim();
+        if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ message: text }));
+        appendWsMessage('You', text);
+        inputEl.value = '';
+    });
+
+    // Enter to send (tanpa shift)
+    document.getElementById('ws-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('ws-form').requestSubmit();
+        }
+    });
+</script>
+{% endblock %}

@@ -13,8 +13,8 @@ async def main():
     cfg = HyperConfig()
     cfg.bind = ["0.0.0.0:8000"]
 
-    await serve(app, cfg)
+    await serve(app, cfg, mode="asgi")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(), debug=True)

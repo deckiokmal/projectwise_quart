@@ -2,12 +2,10 @@
 {% block title %}Chat • ProjectWise{% endblock %}
 
 {% block head %}
-{# Tambahkan head khusus halaman ini jika perlu #}
 {% endblock %}
 
 {% block body %}
-<section class="chat">
-  <!-- Header kecil halaman chat (opsional, bisa di-hide via CSS) -->
+<section class="chat-area">
   <header class="chat__header" aria-label="Chat Header">
     <div class="chat__title">
       <i class="fa-solid fa-robot"></i>
@@ -19,9 +17,7 @@
     </div>
   </header>
 
-  <!-- Area pesan (scrollable) -->
-  <section id="chat-scroll" class="chat__messages" aria-live="polite" aria-label="Messages">
-    <!-- Empty state (akan disembunyikan saat ada pesan) -->
+  <section id="chat-section" class="chat__messages" aria-live="polite" aria-label="Messages">
     <div id="empty-state" class="empty-state">
       <div class="empty-state__icon">
         <i class="fa-solid fa-sparkles"></i>
@@ -42,6 +38,9 @@
     <div id="typing" class="typing hidden" aria-hidden="true" aria-label="Assistant is typing">
       <span class="dot"></span><span class="dot"></span><span class="dot"></span>
     </div>
+
+    <!-- chat messages here -->
+
   </section>
 
   <!-- Input bar (horizontal) -->

@@ -56,14 +56,18 @@ document.addEventListener('DOMContentLoaded', () => {
    *  Referensi elemen UI
    * ============================= */
   const getChatArea = () =>
-    document.getElementById('chat-scroll') ||
+    document.getElementById('chat-section') ||
+    document.getElementById('ws-section') ||
     document.querySelector('.chat__messages') ||
+    document.querySelector('.ws__messages') ||
     document.querySelector('.main__chat');
 
   const el = {
     // chat
     chatForm:   $('#chat-form'),
+    wsForm:     $('#ws-form'),
     chatInput:  $('#chat-input'),
+    wsInput:    $('#ws-input'),
     typing:     $('#typing'),
     emptyState: $('#empty-state'),
     // upload & modal
@@ -114,6 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
     ['input', 'change'].forEach(evt => el.chatInput.addEventListener(evt, () => autoGrow(el.chatInput)));
     autoGrow(el.chatInput);
   }
+
+  // const messagesArea = document.getElementById('messages-area');
+  // function scrollToBottom() {
+  //   if (!messagesArea) return;
+  //   // Smooth kalau dekat bawah; instant kalau jauh
+  //   const nearBottom = messagesArea.scrollHeight - messagesArea.scrollTop - messagesArea.clientHeight < 120;
+  //   messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: nearBottom ? 'smooth' : 'auto' });
+  // }
 
   /* =============================
    *  Markdown pipeline
@@ -253,51 +265,149 @@ document.addEventListener('DOMContentLoaded', () => {
    *  - createMsgEl: buat bubble berdasarkan role
    *  - appendMessage: sisipkan ke area chat
    * ============================= */
-  const createMsgEl = ({ role = 'assistant', html = '', text = '', meta = '' } = {}) => {
-    const isUser = role === 'user';
+  // ===== Per-user color utilities (deterministik dari nama/user_id) =====
+  const _COLOR_CACHE = new Map();
+
+  function _hashString(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+      h = (h << 5) - h + s.charCodeAt(i);
+      h |= 0;
+    }
+    return Math.abs(h);
+  }
+
+  /**
+   * Hasilkan palet warna untuk user tertentu.
+   * - Konsisten lintas sesi/device selama 'key' sama.
+   * - Bubble: pastel terang; Who: lebih gelap pada hue sama.
+   * - Text color otomatis #111 (gelap) bila background terang.
+   */
+  function paletteForUser(key, { role } = {}) {
+    if (!key) key = "User";
+
+    // Warna tetap untuk assistant/system
+    const lower = String(key).toLowerCase();
+    if (lower === "assistant" || lower === "system") {
+      return {
+        who: "hsl(220 80% 38%)",
+        bubbleBg: "hsl(220 30% 95%)",
+        bubbleFg: "#111",
+      };
+    }
+
+    // Cache supaya hemat
+    const cacheKey = `${role || ""}:${key}`;
+    if (_COLOR_CACHE.has(cacheKey)) return _COLOR_CACHE.get(cacheKey);
+
+    // Hue dari hash nama
+    const hue = _hashString(key) % 360;
+
+    // Sedikit beda tone utk self vs peer (opsional)
+    const bubbleS = role === "user" ? 72 : 80;   // saturasi
+    const bubbleL = role === "user" ? 76 : 86;   // lightness
+    const nameS   = 72;
+    const nameL   = 32;
+
+    const bubbleBg = `hsl(${hue} ${bubbleS}% ${bubbleL}%)`;
+    const bubbleFg = bubbleL > 65 ? "#111" : "#fff"; // teks gelap jika pastel terang
+    const who      = `hsl(${hue} ${nameS}% ${nameL}%)`;
+
+    const out = { who, bubbleBg, bubbleFg };
+    _COLOR_CACHE.set(cacheKey, out);
+    return out;
+  }
+
+  const createMsgEl = ({
+    role = 'assistant',       // 'user' | 'peer' | 'assistant'
+    html = '',
+    text = '',
+    who = '',
+    time = '',
+    avatar = undefined        // 'user' | 'robot' (opsional)
+  } = {}) => {
+    const isSelf = role === 'user';
+    const isPeer = role === 'peer';
+    const variantClass = isSelf ? 'msg--user' : 'msg--assistant';
 
     const wrap = document.createElement('div');
-    wrap.className = `msg ${isUser ? 'msg--user' : 'msg--assistant'}`;
+    wrap.className = `msg ${variantClass}`;
 
-    const avatar = document.createElement('div');
-    avatar.className = 'msg__avatar';
-    avatar.innerHTML = isUser ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
+    // Avatar
+    const avatarEl = document.createElement('div');
+    avatarEl.className = 'msg__avatar';
+    const avatarKind = avatar || ((isSelf || isPeer) ? 'user' : 'robot');
+    avatarEl.innerHTML = (avatarKind === 'user')
+      ? '<i class="fa-solid fa-user"></i>'
+      : '<i class="fa-solid fa-robot"></i>';
 
-    const content = document.createElement('div');
-    content.className = 'msg__content';
-
-    const rendered = html || renderMarkdown(String(text || ''));
-    content.innerHTML = rendered;
-    enhanceRendered(content);
-
-    const metaEl = document.createElement('div');
-    metaEl.className = 'msg__meta';
-    metaEl.textContent = meta || (new Date()).toLocaleTimeString();
-
+    // Main (who + bubble)
     const main = document.createElement('div');
-    main.appendChild(content);
-    main.appendChild(metaEl);
+    main.className = 'msg__main';
 
-    if (isUser) { wrap.appendChild(main); wrap.appendChild(avatar); }
-    else { wrap.appendChild(avatar); wrap.appendChild(main); }
+    // Bubble content
+    const contentEl = document.createElement('div');
+    contentEl.className = 'msg__content';
 
-    return { el: wrap, contentEl: content };
+    // WHO (nama kecil di atas)
+    const whoEl = document.createElement('div');
+    whoEl.className = 'msg__who';
+    if (!who) {
+      if (isSelf) who = (window?.state?.userId || document.getElementById('ws-user-id')?.value || 'You');
+      else if (!isPeer) who = 'Assistant';
+      // untuk peer biarkan kosong jika tidak disuplai, tapi sebaiknya isi dengan "from"
+    }
+    if (who) contentEl.appendChild(whoEl), (whoEl.textContent = who);
+
+    const textEl = document.createElement('div');
+    textEl.className = 'msg__text';
+    const rendered = html || renderMarkdown(String(text || ''));
+    textEl.innerHTML = rendered;
+    enhanceRendered(textEl); // tetap pakai enhancer yang ada
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'msg__time';
+    const t = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    timeEl.textContent = t;
+
+    contentEl.appendChild(textEl);
+    contentEl.appendChild(timeEl);
+    main.appendChild(contentEl);
+
+    // Susunan kiri/kanan (avatar & main)
+    if (isSelf) { wrap.appendChild(main); wrap.appendChild(avatarEl); }
+    else { wrap.appendChild(avatarEl); wrap.appendChild(main); }
+
+    // === >>> Injeksi warna per-user lewat CSS variables <<< ===
+    const keyForColor = who || (isSelf ? (window?.wsState?.userId || 'You') : 'User');
+    const pal = paletteForUser(keyForColor, { role });
+    wrap.style.setProperty('--who-color', pal.who);
+    wrap.style.setProperty('--bubble-bg', pal.bubbleBg);
+    wrap.style.setProperty('--bubble-fg', pal.bubbleFg);
+
+    // (opsional) simpan data atribut untuk debugging/QA
+    wrap.dataset.username = keyForColor;
+
+    return { el: wrap, contentEl: textEl };
   };
 
-  const appendMessage = ({ role = 'assistant', html = '', text = '', meta = '' } = {}) => {
+
+  const appendMessage = ({ role = 'assistant', html = '', text = '', meta = '', who = '', time = '', avatar = undefined } = {}) => {
     const area = getChatArea();
-    const { el: bubble, contentEl } = createMsgEl({ role, html, text, meta });
+    const { el: bubble, contentEl } = createMsgEl({ role, html, text, who, time: time || meta, avatar });
     area?.appendChild(bubble);
     hideEmptyState();
     scrollToBottom();
     return { el: bubble, contentEl };
   };
 
+
   // Bubble asisten sementara untuk menunggu respons (akan diisi saat balasan datang)
   let pendingAssistant = null; // { el, contentEl } | null
   const ensurePendingAssistant = () => {
     if (pendingAssistant && document.body.contains(pendingAssistant.el)) return pendingAssistant;
     pendingAssistant = appendMessage({ role: 'assistant', html: '<em>…</em>' });
+    // scrollToBottom();
     return pendingAssistant;
   };
 
@@ -337,10 +447,60 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =============================
    *  Topbar toggle & Upload menu
    * ============================= */
-  el.btnTopbarToggle && el.btnTopbarToggle.addEventListener('click', () => {
-    // Toggle kelas untuk membuka/menutup menu pada tampilan mobile
-    document.body.classList.toggle('sidebar-open');
-  });
+  (() => {
+    const btn = document.getElementById('btnTopbarToggle');
+    const sidebar = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('overlay');
+    if (!btn || !sidebar || !overlay) return;
+
+    const bpDesktop = window.matchMedia('(min-width:1024px)');
+    const isDesktop = () => bpDesktop.matches;
+
+    function openSidebar(){
+      if (isDesktop()) return;                 // desktop: tidak dipakai
+      document.body.classList.add('sidebar-open');
+      btn.setAttribute('aria-expanded', 'true');
+      overlay.hidden = false;
+      // fokus ke sidebar (aksesibilitas)
+      sidebar.setAttribute('tabindex','-1');
+      sidebar.focus();
+    }
+
+    function closeSidebar(){
+      document.body.classList.remove('sidebar-open');
+      btn.setAttribute('aria-expanded', 'false');
+      overlay.hidden = true;
+      // kembalikan fokus ke tombol (aksesibilitas)
+      btn.focus();
+    }
+
+    function toggleSidebar(){
+      if (document.body.classList.contains('sidebar-open')) closeSidebar();
+      else openSidebar();
+    }
+
+    // Events
+    btn.addEventListener('click', toggleSidebar);
+    overlay.addEventListener('click', closeSidebar);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSidebar();
+    });
+
+    // Jika user resize ke desktop, pastikan sidebar tertutup & overlay hilang
+    bpDesktop.addEventListener('change', () => {
+      if (isDesktop()){
+        document.body.classList.remove('sidebar-open');
+        overlay.hidden = true;
+        btn.setAttribute('aria-expanded','false');
+      }
+    });
+
+    // (Opsional) Tutup sidebar setelah klik link di dalamnya
+    sidebar.addEventListener('click', (ev) => {
+      const a = ev.target.closest('a');
+      if (a) closeSidebar();
+    });
+  })();
 
   const toggleUploadMenu = (force = null) => {
     if (!el.uploadMenu) return;
@@ -447,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await res.json();
       appendMessage({ role: 'assistant', text:'KAK Analyzer sedang diproses..' });
+      // scrollToBottom();
 
       if (res.status === 202) {
         if (data.message) toast(data.message, 'ok', 2500);
@@ -490,6 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await res.json();
       appendMessage({ role: 'assistant', text: 'Product Sizing sedang diproses..' });
+      // scrollToBottom();
       
       if (res.status === 202) {
         if (data.message) toast(data.message, 'ok', 2500);
@@ -631,6 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
         enhanceRendered(pendingAssistant.contentEl);
       } else {
         appendMessage({ role: 'assistant', html, meta });
+        // scrollToBottom();
       }
       if (typeof resetAssistantChunk === 'function') resetAssistantChunk();
       pendingAssistant = null;
@@ -639,12 +802,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render summary dengan heading otomatis (promoteSectionHeadings)
     appendAssistantSummary(summaryText, meta = '') {
       appendMessage({ role: 'assistant', html: renderMarkdown(String(summaryText || ''), { promoteHeadings: true }), meta });
+      // scrollToBottom();
       if (typeof resetAssistantChunk === 'function') resetAssistantChunk();
     },
 
     // Placeholder untuk streaming chunk; sesuaikan bila menggunakan SSE/WebSocket
     appendAssistantChunk(chunk) {
       appendMessage({ role: 'assistant', text: String(chunk || '') });
+      // scrollToBottom();
     },
 
     // Render bubble user + aktifkan pending + typing indicator
@@ -652,6 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
       appendMessage({ role: 'user', html: renderMarkdown(String(markdown || '')), meta });
       pendingAssistant = ensurePendingAssistant();
       setTyping(true);
+      // scrollToBottom();
     },
 
     setTyping,
@@ -691,6 +857,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     appendMessage({ role: 'user', text });
     setTyping(true);
+    // scrollToBottom();
 
     el.chatInput.value = '';
     autoGrow(el.chatInput);
@@ -727,4 +894,266 @@ document.addEventListener('DOMContentLoaded', () => {
       el.chatForm?.requestSubmit();
     }
   });
+
+
+  /* =============================
+  *  Form ws chat (WS Room)
+  *  - Submit via Enter
+  *  - Shift+Enter = Newline
+  *  - Selaras dengan ws_room.html
+  * ============================= */
+
+  // ======= State =======
+  let ws = null;
+  const wsState = {
+    roomId: null,
+    userId: null,
+    reconnectAttempt: 0,
+    autoReconnect: false,
+    reconnectTimer: null,
+  };
+
+  // ======= Helpers =======
+  function gid(id) { return document.getElementById(id); } // id only
+  function val(id) { return (gid(id)?.value || "").trim(); }
+  function qs(sel) { return document.querySelector(sel); } // css selector
+
+  function saveLast() {
+    try {
+      localStorage.setItem("ws_room_id", wsState.roomId || "");
+      localStorage.setItem("ws_user_id", wsState.userId || "");
+      localStorage.setItem("ws_auto_reconnect", String(wsState.autoReconnect));
+    } catch {}
+  }
+
+  function saveHist(roomId, entry) {
+    try {
+      const key = `ws_hist_${roomId}`;
+      const arr = JSON.parse(localStorage.getItem(key) || "[]");
+      arr.push({ ...entry, ts: Date.now() });
+      if (arr.length > 500) arr.shift();           // batasi size
+      localStorage.setItem(key, JSON.stringify(arr));
+    } catch {}
+  }
+
+  function renderHist(roomId) {
+    try {
+      const key = `ws_hist_${roomId}`;
+      const arr = JSON.parse(localStorage.getItem(key) || "[]");
+      arr.forEach((m) => {
+        // langsung panggil appendMessage agar tidak menulis ulang ke storage
+        const role = m.role || (m.self ? 'user' : (m.type === 'message' ? 'peer' : 'assistant'));
+        appendMessage({ role, text: m.content || m.text || '', who: m.who, time: m.time, avatar: m.avatar });
+      });
+      if (arr.length) gid("empty-state")?.classList.add("hidden");
+    } catch {}
+  }
+
+  function loadLast() {
+    try {
+      const r = localStorage.getItem("ws_room_id") || "";
+      const u = localStorage.getItem("ws_user_id") || "";
+      const a = localStorage.getItem("ws_auto_reconnect") === "true";
+      if (r) gid("ws-room-id").value = r;
+      if (u) gid("ws-user-id").value = u;
+      gid("ws-auto-reconnect").checked = a;
+    } catch {}
+  }
+
+  function setUIConnected(connected) {
+    gid("join-room-btn").classList.toggle("hidden", connected);
+    gid("leave-room-btn").classList.toggle("hidden", !connected);
+    gid("leave-room-btn").disabled = !connected;
+
+    const input = gid("ws-input");
+    const sendBtn = qs('#ws-form button[type="submit"]');
+    if (input) input.disabled = !connected;
+    if (sendBtn) sendBtn.disabled = !connected;
+
+    gid("conn-dot").classList.toggle("on", connected);
+    gid("conn-label").textContent = connected ? "Connected" : "Disconnected";
+    gid("conn-dot").title = connected ? "Connected" : "Disconnected";
+
+    if (connected) {
+      gid("empty-state")?.classList.add("hidden");
+      input?.focus();
+    }
+  }
+
+  function parseJSONSafe(s) { try { return JSON.parse(s); } catch { return null; } }
+
+  function wsURL(roomId, userId) {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    return `${proto}://${location.host}/ws/chat/${encodeURIComponent(roomId)}/${encodeURIComponent(userId)}`;
+  }
+
+  // Adaptor payload WebSocket -> bubble UI ala WhatsApp
+  const wsAppend = ({ type = 'message', from = '', content = '', self = false } = {}) => {
+    // time otomatis di createMsgEl
+    if (type === 'message') {
+      if (self) {
+        // pesan saya: kanan, ikon user, nama saya
+        appendMessage({ role: 'user', text: content, who: from || (window?.state?.userId || 'You'), avatar: 'user' });
+        saveHist(wsState.roomId, { role: 'user', content, who: from || (window?.state?.userId || 'You'), avatar: 'user' });
+      } else {
+        // pesan user lain: kiri, ikon user, nama pengirim
+        appendMessage({ role: 'peer', text: content, who: from || 'User', avatar: 'user' });
+        saveHist(wsState.roomId, { role: 'peer', content, who: from || 'User', avatar: 'user' });
+      }
+    } else {
+      // system/assistant: kiri, ikon robot, nama "Assistant"
+      appendMessage({ role: 'assistant', text: content, who: 'Assistant', avatar: 'robot' });
+      saveHist(wsState.roomId, { role: 'assistant', content, who: 'Assistant', avatar: 'robot' });
+    }
+  };
+
+
+  // ======= Reconnect backoff =======
+  function scheduleReconnect() {
+    if (!wsState.autoReconnect) return;
+    const delay = Math.min(30000, 1000 * Math.pow(2, wsState.reconnectAttempt)); // 1s→2s→4s ... max 30s
+    clearTimeout(wsState.reconnectTimer);
+    wsState.reconnectTimer = setTimeout(() => {
+      wsState.reconnectAttempt++;
+      connectWS();
+    }, delay);
+  }
+
+  // ======= Core connect / disconnect =======
+  function connectWS() {
+    const roomId = val("ws-room-id");
+    const userId = val("ws-user-id");
+    if (!roomId || !userId) {
+      wsAppend({ type: "system", content: "Room ID dan User ID wajib diisi." });
+      return;
+    }
+    wsState.roomId = roomId;
+    wsState.userId = userId;
+    wsState.autoReconnect = !!gid("ws-auto-reconnect")?.checked; // id sesuai HTML
+    saveLast();
+
+    try {
+      if (ws) {
+        ws.onopen = ws.onclose = ws.onmessage = ws.onerror = null;
+        ws.close();
+      }
+    } catch {}
+
+    ws = new WebSocket(wsURL(roomId, userId)); // path sesuai backend /ws/chat/<room>/<user>
+
+    ws.onopen = () => {
+      wsState.reconnectAttempt = 0;
+      setUIConnected(true);
+      renderHist(wsState.roomId); 
+      wsAppend({ type: "system", content: `Connected to room ${roomId} as ${userId}` });
+    };
+
+    ws.onmessage = (evt) => {
+      const data = parseJSONSafe(evt.data);
+      if (!data) { wsAppend({ type: 'system', content: String(evt.data ?? '') }); return; }
+
+      if (data.type === 'history' && Array.isArray(data.items)) {
+        // render lama -> baru
+        for (const m of data.items) {
+          const isSelf = m.type === 'message' && m.from === wsState.userId;
+          wsAppend({ type: m.type, from: m.from, content: m.content, self: isSelf });
+        }
+        return;
+      }
+
+      if (data.type === 'message') {
+        const isSelf = data.from === wsState.userId;
+        if (!isSelf) wsAppend({ type: 'message', from: data.from, content: data.content, self: false });
+      } else {
+        wsAppend({ type: 'system', content: data.content ?? JSON.stringify(data) });
+      }
+    };
+
+    ws.onerror = () => {
+      wsAppend({ type: "system", content: "WebSocket error" });
+    };
+
+    ws.onclose = () => {
+      setUIConnected(false);
+      scheduleReconnect();
+    };
+  }
+
+  function disconnectWS() {
+    try {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.close(1000, "client closed");
+    } catch {}
+    setUIConnected(false);
+    clearTimeout(wsState.reconnectTimer);
+  }
+
+  // ======= DOM Events =======
+  document.addEventListener("DOMContentLoaded", () => {
+    loadLast();
+  });
+
+  gid("join-room-btn")?.addEventListener("click", () => connectWS());
+  
+  // helper kecil (promise delay)
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  gid("leave-room-btn")?.addEventListener("click", async () => {
+    wsState.autoReconnect = false;
+    const cb = gid("ws-auto-reconnect");
+    if (cb) cb.checked = false;
+
+    // 1) kirim sinyal LEAVE (jika masih OPEN)
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: "leave" }));
+      } catch {}
+
+      // 2) SELF-SHOW di UI (agar terlihat di sisi user yang keluar)
+      const who = wsState.userId || gid("ws-user-id")?.value || "You";
+      wsAppend({ type: "system", content: `${who} left` });
+
+      // 3) beri sedikit jeda agar server sempat broadcast ke klien lain
+      await delay(150);
+
+      // 4) tutup socket
+      try { ws.close(1000, "leave"); } catch {}
+    }
+
+    // 5) update UI lokal
+    disconnectWS();
+  });
+
+  gid("ws-auto-reconnect")?.addEventListener("change", (e) => {
+    wsState.autoReconnect = !!e.target.checked;
+    saveLast();
+  });
+
+  gid("ws-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = val("ws-input");
+    if (!text) return;
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      wsAppend({ type: "system", content: "Not connected" });
+      return;
+    }
+
+    // tampilkan segera di UI (server tidak meng-echo balik pengirim)
+    wsAppend({ type: "message", from: wsState.userId, content: text, self: true });
+    const ta = gid("ws-input");
+    if (ta) { ta.value = ""; ta.dispatchEvent(new Event("input")); } // trigger autogrow jika ada
+
+    // kirim ke server
+    try { ws.send(JSON.stringify({ message: text })); }
+    catch { wsAppend({ type: "system", content: "Failed to send message" }); }
+  });
+
+  // Enter=submit, Shift+Enter=newline
+  gid("ws-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      gid("ws-form")?.requestSubmit();
+    }
+  });
+
 });

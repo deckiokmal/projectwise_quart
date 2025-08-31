@@ -1,0 +1,30 @@
+[Unit]
+Description=ProjectWise Client App (uv run main.py)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/projectwise_quart
+# Pastikan pakai path absolut ke 'uv'
+ExecStart=/root/.local/bin/uv run main.py
+
+# (Opsional) jika PATH default tidak memuat ~/.local/bin
+Environment=PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+
+# (Opsional) variabel lingkungan / file .env
+# Buat file ini jika perlu, format: KEY=VALUE per baris
+EnvironmentFile=-/etc/projectwise/projectwise.env
+Environment=PYTHONUNBUFFERED=1
+
+# Ketahanan service
+Restart=on-failure
+RestartSec=5
+
+# (Opsional) batas file descriptor/log dsb.
+# LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

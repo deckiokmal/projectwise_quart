@@ -12,6 +12,10 @@ from projectwise.services.workflow.intent_classification import route_based_on_i
 from projectwise.services.llm_chain.llm_chains import LLMChains
 from projectwise.services.workflow.chat_with_memory import ChatWithMemory
 
+from dataclasses import dataclass
+from datetime import datetime
+from quart_schema import validate_request, validate_response
+
 
 chat_bp = Blueprint("chat", __name__)
 logger = get_logger(__name__)
@@ -483,3 +487,33 @@ def _normalize_reply_to_http(reply: HandlerReply) -> Tuple[Response, int]:
         reply = str(reply)
 
     return jsonify({"status": "success", "reply": reply}), 200
+
+
+@chat_bp.post("/echo")
+async def echo():
+    data = await request.get_json()
+    return {"input": data, "extra": True}
+
+@chat_bp.get("/example")
+async def example():
+    return jsonify(["a", "b", "c"])
+
+@chat_bp.get("/example1")
+async def example1():
+    return {"input": ["a", "b", "c"]}
+
+@dataclass
+class TodoIn:
+    task: str
+    due: datetime | None
+    
+@dataclass
+class Todo(TodoIn):
+    id: int
+    
+@chat_bp.post("/todo/") # type: ignore
+@validate_request(TodoIn)
+@validate_response(Todo)
+async def create_todo(data: TodoIn) -> Todo:
+    return Todo(id=1, task=data.task, due=data.due)
+

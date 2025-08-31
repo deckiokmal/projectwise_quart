@@ -622,7 +622,7 @@ class Mem0Manager:
         self, query: str, *, user_id: str = "default", limit: int = 5
     ) -> str:
         await self._ensure_ready_or_retry()
-        result = await self.memory.search(query, user_id=user_id, limit=limit)
+        result = await self.memory.search(query=query, user_id=user_id, limit=limit)
         # logger.info("get_memories_v2 result: %s", result["results"])
 
         text_memory = []

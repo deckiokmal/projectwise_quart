@@ -12,7 +12,6 @@ class NoOpAsyncMemory:
         *,
         messages: List[Dict[str, str]],
         user_id: str,
-        agent_id: str,
         metadata: Optional[Dict[str, Any]] = None,
         infer: bool = False,
     ) -> Dict[str, Any]:

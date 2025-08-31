@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from quart import Quart
+from quart_schema import QuartSchema
 
 from .config import get_config
 from .utils.logger import get_logger
@@ -29,6 +30,8 @@ async def create_app(config_object: object | None = None) -> Quart:
     """
 
     app = Quart(__name__, instance_relative_config=True)
+    
+    QuartSchema(app)
 
     env = os.environ.get("APP_ENV", "default")
     if config_object:

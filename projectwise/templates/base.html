@@ -54,9 +54,11 @@
 
                 <!-- Mobile menu toggler (ikon hamburger) -->
                 <button id="btnTopbarToggle" class="btn btn--icon topbar__toggle" aria-label="Toggle navigation"
-                    aria-expanded="false">
+                    aria-controls="app-sidebar" aria-expanded="false">
                     <i class="fa-solid fa-bars"></i>
                 </button>
+
+
             </div>
         </div>
     </header>
@@ -71,6 +73,28 @@
             {% block body %}{% endblock %}
         </main>
     </div>
+
+    <!-- Sidebar + Overlay (mobile) -->
+    <aside id="app-sidebar" class="sidebar" role="complementary" aria-label="Sidebar" tabindex="-1">
+        <div class="sidebar__header">Sidebar</div>
+        <nav class="sidebar__body">
+            <ul>
+                <li class="topbar__item {% if request.endpoint == 'main.index' %}active{% endif %}">
+                    <a class="topbar__link" href="{{ url_for('main.index') }}">Home</a>
+                </li>
+                <li class="topbar__item {% if request.endpoint == 'main.war_rooms' %}active{% endif %}">
+                    <a class="topbar__link" href="{{ url_for('main.war_rooms') }}">War Rooms</a>
+                </li>
+                <li class="topbar__item {% if request.endpoint == 'main.proposal' %}active{% endif %}">
+                    <a class="topbar__link" href="{{ url_for('main.proposal') }}">Proposal Generation</a>
+                </li>
+                <li class="topbar__item {% if request.endpoint == 'main.analysis' %}active{% endif %}">
+                    <a class="topbar__link" href="{{ url_for('main.analysis') }}">Budget Analysis</a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+    <div id="overlay" class="overlay" hidden></div>
 
     <!-- ===== Modals ===== -->
     <div id="modal-kak" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-kak-title">
@@ -123,7 +147,8 @@
                 </div>
                 <div class="form-group">
                     <label for="product-name">Product Name</label>
-                    <input type="text" id=product-name" name="product" placeholder="Contoh: Internet Dedicated" required />
+                    <input type="text" id=product-name" name="product" placeholder="Contoh: Internet Dedicated"
+                        required />
                 </div>
                 <div class="form-group">
                     <label for="product-tahun">Tahun</label>
